@@ -16,6 +16,10 @@ struct Fraction {
 
     // Hàm in phân số
     void print() const;
+
+    double toDouble() const;
+
+    
 };
 
 #endif
