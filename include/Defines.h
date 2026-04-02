@@ -1,6 +1,8 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
+#include <vector>
+
 // Chứa bí danh, hằng số và mã lỗi
 using SampleVector = std::vector<double>;
 const double EPSILON = 1e-9;
