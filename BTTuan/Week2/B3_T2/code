@@ -1,0 +1,107 @@
+// Phân tích:
+// Input: 
+// File poly.csv: Chứa bậc của đa thức (degree) và các hệ số a_0, a_1,..., a_n. 
+// File x_values.csv: Chứa nhiều giá trị x cần tính (mỗi dòng một giá trị). 
+// Output: 
+// File output.csv: Ghi kết quả dưới dạng các cặp x, P(x). 
+// Yêu cầu định dạng: setprecision(6) cho các số thực. 
+// Thiết kế hàm:
+// double evalHorner(const vector<double>& a, double x): Tính giá trị đa thức tại điểm x bằng thuật toán Horner để tối ưu số phép tính. 
+// - Khởi tạo res = a[n] (hệ số bậc cao nhất). 
+// - Duyệt vòng lặp ngược từ i = n-1 về 0: Cập nhật res = res * x + a[i]. 
+// Hàm đọc csv: bool readCSV(const string& path, vector<double>& values): Đọc file csv và trả về vector<double> chứa các giá trị.
+// Hàm ghi csv: bool writeCSV(const string& filename, const vector<pair<double, double>>& results): Ghi các cặp (x, P(x)) vào file output.csv.
+// Pipeline:
+// Đọc poly.csv: Lấy bậc đa thức và nạp các hệ số a_i vào một vector<double>. 
+// Đọc x_values.csv: Duyệt từng dòng để lấy giá trị x. 
+// Gọi hàm evalHorner: Với mỗi x đọc được, tính giá trị P(x) tương ứng. 
+// Ghi kết quả: Xuất tiêu đề (header) và các cặp giá trị (x, P(x)) vào file output.csv. 
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+
+// Hàm tính P(x) bằng thuật toán Horner
+double evalHorner(const vector<double>& a, double x) {
+    int n = a.size() - 1; // Bậc của đa thức
+    double res = a.back(); // Hệ số bậc cao nhất
+    for (int i = n - 1; i >= 0; --i) {
+        res = res * x + a[i];
+    }
+    return res;
+}
+
+// Hàm đọc CSV và trả về vector<double>
+bool readCSV(const string& path, vector<double>& values) {
+    ifstream file(path);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << path << endl;
+        return false;
+    }
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue; // Bỏ qua dòng trống
+
+        stringstream ss(line);// Tách dòng thành các giá trị bằng dấu phẩy
+        string value;
+        // Đọc từng giá trị và chuyển đổi sang double
+        while (getline(ss, value, ',')) {
+            try {
+                values.push_back(stod(value));
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid number in file: " << value << endl;
+                return false;
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Hàm ghi CSV với cặp (x, P(x))
+bool writeCSV(const string& filename, const vector<pair<double, double>>& results) {
+    ofstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << filename << endl;
+        return false;
+    }
+    file << "x,P(x)\n"; // Ghi header
+    for (const auto& pair : results) {
+        file << fixed << setprecision(6) << pair.first << "," << fixed << setprecision(6) << pair.second << "\n";
+    }
+    file.close();
+    return true;
+}   
+int main() {
+    vector<double> coefficients; // Lưu hệ số đa thức
+    vector<double> x_values; // Lưu các giá trị x cần tính
+    vector<pair<double, double>> results; // Lưu kết quả (x, P(x))
+
+    // Đọc hệ số đa thức từ poly.csv
+    if (!readCSV("poly.csv", coefficients)) {
+        return 1; // Kết thúc nếu có lỗi
+    }
+
+    // Đọc các giá trị x từ x_values.csv
+    if (!readCSV("x_values.csv", x_values)) {
+        return 1; // Kết thúc nếu có lỗi
+    }
+
+    // Tính P(x) cho mỗi giá trị x và lưu kết quả
+    for (double x : x_values) {
+        double px = evalHorner(coefficients, x);
+        results.emplace_back(x, px);
+    }
+
+    // Ghi kết quả vào output.csv
+    if (!writeCSV("output.csv", results)) {
+        return 1; // Kết thúc nếu có lỗi
+    }
+
+    cout << "Calculation completed successfully. Results saved to output.csv" << endl;
+    return 0;
+}
