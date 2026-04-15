@@ -1,0 +1,62 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>
+
+using namespace std;
+
+int count_ge_k(const vector<int>& arr, int k, bool geq) {
+    int count = 0;
+    // Duyệt từng phần tử trong mảng arr
+    // Nếu geq là true, đếm số phần tử >= k, ngược lại đếm số phần tử < k
+    for (int num : arr) {
+        if (geq) {
+            if (num >= k) {
+                count++;
+            }
+        } else {
+            if (num < k) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+int main() {
+    vector<int> arr;
+    int k;
+
+    // Đọc dữ liệu từ file array.txt
+    ifstream arrayFile("array_k.txt");
+    if (arrayFile.is_open()) {
+        int num;
+        while (arrayFile >> num) {
+            arr.push_back(num);
+        }
+        arrayFile.close();
+    } else {
+        cerr << "Unable to open file array.txt" << endl;
+        return 1;
+    }
+
+    // Đọc giá trị k từ file config.txt
+    ifstream configFile("config.txt");
+    if (configFile.is_open()) {
+        configFile >> k;
+        configFile.close();
+    } else {
+        cerr << "Unable to open file config.txt" << endl;
+        return 1;
+    }
+
+    // Tính count_ge_k và count_lt_k
+    int count_ge_k_value = count_ge_k(arr, k, true);
+    int count_lt_k_value = count_ge_k(arr, k, false);
+
+    // In kết quả ra màn hình  
+    cout << "count_ge_k: " << count_ge_k_value << endl;
+    cout << "count_lt_k: " << count_lt_k_value << endl;
+
+    return 0;
+}
