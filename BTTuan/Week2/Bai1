@@ -1,0 +1,63 @@
+# include <iostream>
+#include <fstream>
+#include <vector>
+#include <iomanip>
+
+using namespace std;
+
+bool readArray(string path, vector<double> &arr) {
+    ifstream file(path);
+    if (!file.is_open()) {
+        cerr << "Error opening file!" << endl;
+        return false;
+    }
+
+    int n;
+    // Kiểm tra file lỗi - nếu file rỗng hoặc ký tự không phải số thì trả về false
+    if (!(file >> n)) return false;
+    // Nếu n = 0 thì không cần đọc thêm, trả về true nhưng arr sẽ rỗng
+    if (n == 0) return true;
+    // Cấp phát bộ nhớ cho mảng và đọc n số thực vào mảng
+    arr.resize(n);
+    for (int i = 0; i < n; i++) {
+        file >> arr[i];
+    }
+    file.close();
+    return true;
+}
+
+double calcMean(const vector<double> &arr) {
+    if (arr.empty()) return 0.0; // Trường hợp n=0, trả về 0 để tránh chia cho 0
+    double sum = 0.0;
+    for (double num : arr) {
+        sum += num;
+    }
+    return sum / arr.size();
+}
+
+int main() {
+    vector<double> arr;
+    if (!readArray("array.txt", arr)) {
+        cerr << "Failed to read array from file." << endl;
+        return 0;
+    }
+
+    if (arr.empty()) {
+        cout << "EMPTY" << endl;
+        return 0;
+    }
+
+    double min = arr[0], max = arr[0];
+    for (double num : arr) {
+        if (num < min) min = num;
+        if (num > max) max = num;
+    }
+    double mean = calcMean(arr);
+
+    cout << fixed << setprecision(4);
+    cout << "Min: " << min << endl;
+    cout << "Max: " << max << endl;
+    cout << "Mean: " << mean << endl;
+
+    return 0;
+}
