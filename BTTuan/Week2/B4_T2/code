@@ -1,0 +1,66 @@
+#include <iostream>
+#include <fstream>
+#include <vector>       
+#include <sstream>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+
+// Hàm tính phương sai
+double calcVariance(const vector<double>& a, double mean) {
+    double sumSqDiff = 0.0;
+    for (double x : a) {
+        sumSqDiff += (x - mean) * (x - mean);
+    }               
+    return sumSqDiff / a.size();
+}   
+// Hàm đọc CSV và trả về vector<double>
+bool readCSV(const string& path, vector<double>& values) {
+    ifstream file(path);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << path << endl;
+        return false;
+    }
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue; // Bỏ qua dòng trống
+        stringstream ss(line); // Tách dòng thành các giá trị bằng dấu phẩy
+        string value;
+        // Đọc từng giá trị và chuyển đổi sang double
+        while (getline(ss, value, ',')) {
+            try {
+                values.push_back(stod(value));
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid number in file: " << value << endl;
+                return false;   
+            }
+        }
+    }
+    return true;
+}
+int main() {
+    vector<double> data;
+    if (!readCSV("data.csv", data)) {
+        return 1; // Lỗi khi đọc file
+    }
+    int n = data.size();
+    if (n == 0) {
+        cout << "EMPTY" << endl;
+        return 0;
+    }
+    double sum = 0.0;
+    for (double x : data) {
+        sum += x;
+    }
+    double mean = sum / n;
+    double variance = (n > 1) ? calcVariance(data, mean) : 0.0; // Nếu n=1 thì variance=0
+    double stddev = sqrt(variance);
+    
+    cout << fixed << setprecision(6);
+    cout << "Mean: " << mean << endl;
+    cout << "Variance: " << variance << endl;
+    cout << "Standard Deviation: " << stddev << endl;
+
+    return 0;
+}
