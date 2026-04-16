@@ -85,6 +85,7 @@ bool operator==(const Fraction& a, const Fraction& b) {
     return a.num == b.num && a.den == b.den;
 }
 
+// Ghi phân số
 ostream& operator<<(ostream& out, const Fraction& f) {
     out << f.num << "/" << f.den;
     return out;
