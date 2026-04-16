@@ -1,0 +1,125 @@
+// Input:
+// Mảng hệ số đa thức gốc từ poly.csv (degree , hệ số a_0, a_1, ..., a_n).
+// Danh sách các giá trị $x$ từ x_values.csv.
+// Output:
+// Ghi chung vào file derivative.csv:
+// Dòng 1: Bậc của đạo hàm và các hệ số b_i.
+// Các dòng tiếp theo: Cặp giá trị (x, P'(x)) tương ứng.
+// Thiết kế hàm:
+// vector<double> computeDerivCoeffs(const vector<double>& a): Tính toán hệ số b[i-1] = i * a[i].
+// evalHorner: Đánh giá giá trị đạo hàm tại điểm x.
+// Pipeline:
+// Đọc poly.csv để lấy hệ số $a$.
+// Tính hệ số đạo hàm b.
+// Mở file derivative.csv ở chế độ ghi.
+// Ghi bậc và hệ số đạo hàm vào dòng đầu tiên.
+// Đọc x_values.csv, tính $P'(x)$ cho từng $x$ và ghi tiếp vào các dòng dưới.
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <sstream>  
+#include <iomanip>
+#include <string>
+
+using namespace std;
+
+// Hàm tính hệ số đạo hàm b_i từ a_i
+vector<double> computeDerivCoeffs(const vector<double>& a) {
+    int n = a.size() - 1; // Bậc của đa thức
+    if (n == 0) return {0.0}; // Đa thức hằng có đạo hàm là 0
+    vector<double> b(n); // Hệ số đạo hàm
+    for (int i = 1; i <= n; ++i) {
+        b[i - 1] = i * a[i]; // b_{i-1} = i * a_i
+    }       
+    return b;
+}
+// Hàm tính P'(x) bằng thuật toán Horner
+double evalHorner(const vector<double>& coeffs, double x) {
+    int n = coeffs.size() - 1; // Bậc của đa thức
+    double res = coeffs.back(); // Hệ số bậc cao nhất
+    for (int i = n - 1; i >= 0; --i) {
+        res = res * x + coeffs[i];
+    }
+    return res;
+}
+bool readCSV(const string& path, vector<double>& values, bool skipFirst = false) {
+    ifstream file(path);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << path << endl; // [cite: 12]
+        return false;
+    }
+    
+    string line;
+    bool skipped = false; // Đảm bảo chỉ skip duy nhất 1 lần [cite: 635]
+    while (getline(file, line)) {
+        if (line.empty()) continue;        
+        stringstream ss(line);
+        string cell;
+        while (getline(ss, cell, ',')) {
+            if (skipFirst && !skipped) {
+                skipped = true; // Bỏ qua degree
+                continue;
+            }
+            try {
+                if (!cell.empty()) values.push_back(stod(cell));
+            } catch (...) { continue; }   
+        }
+    }
+    file.close();
+    return true;
+}
+int main() {
+    // 1. Đọc đa thức gốc (skipFirst = true để bỏ qua bậc)
+    vector<double> a;
+    if (!readCSV("poly.csv", a, true)) return 1;
+
+    // Kiểm tra an toàn để tránh EXC_BAD_ACCESS
+    if (a.empty()) {
+        cerr << "Error: No coefficients found!" << endl;
+        return 1;
+    }
+
+    // 2. Tính hệ số đạo hàm
+    vector<double> b = computeDerivCoeffs(a);
+
+    // 3. Đọc x_values (skipFirst = false vì lấy toàn bộ)
+    vector<double> x_vals;
+    if (!readCSV("x_values.csv", x_vals, false)) return 1;
+
+    ofstream outFile("derivative.csv");
+    if (!outFile.is_open()) {
+        cerr << "Error opening file!" << endl;
+        return 1;
+    }
+
+    outFile << fixed << setprecision(6);
+
+    // PHẦN 1: GHI HỆ SỐ ĐẠO HÀM
+    outFile << "SECTION,DERIVATIVE_COEFFICIENTS\n"; // Tiêu đề phần 1
+    outFile << "Degree,";
+    for (size_t i = 0; i < b.size(); ++i) {
+        outFile << "b" << i << (i < b.size() - 1 ? "," : "");
+    }
+    outFile << "\n";
+
+    outFile << (b.size() - 1 > 0 ? b.size() - 1 : 0) << ","; // Ghi bậc
+    for (size_t i = 0; i < b.size(); ++i) {
+        outFile << b[i] << (i < b.size() - 1 ? "," : "");
+    }
+    outFile << "\n\n"; // Xuống dòng trống để ngăn cách
+
+    // PHẦN 2: GHI KẾT QUẢ ĐÁNH GIÁ (EVALUATION)
+    outFile << "SECTION,EVALUATION_RESULTS\n"; // Tiêu đề phần 2
+    outFile << "x,P'(x)\n"; // Header cho các cột dữ liệu
+    
+    // Nếu x_vals trống (case biên), vòng lặp này sẽ không chạy, 
+    // file vẫn giữ được dòng header "x,P'(x)" ở trên.
+    for (double x : x_vals) {
+        outFile << x << "," << evalHorner(b, x) << "\n";
+    }
+
+    outFile.close();
+    cout << "Success! Results saved in derivative.csv" << endl;
+
+    return 0;
+}
