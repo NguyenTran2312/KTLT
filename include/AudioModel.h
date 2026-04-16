@@ -3,38 +3,34 @@
 
 #include <string>
 #include <vector>
-#include "Defines.h"
-#include "Polynomial.h"
-
-using std::string;
-using std::vector;
+#include "Defines.h"    // Để có SampleVector
+#include "Polynomial.h" // Để có Polynomial
 
 // =======================
 // Channel struct
 // =======================
 struct Channel {
-    string name;
+    std::string name;
     SampleVector samples;
     Polynomial approx;
-
+    
     int getSampleCount() const;
     void addSample(double value);
 };
-
 // =======================
 // AudioFile struct
 // =======================
 struct AudioFile {
-    string filename;
+    std::string filename;
     int sample_rate;
-    vector<Channel> channels;
-
-    int findChannelIndex(const string& channel_name) const;
-    void addSampleToChannel(const string& channel_name, double value);
+    std::vector<Channel> channels;
+    
+    int findChannelIndex(const std::string& channel_name) const;
+    void addSampleToChannel(const std::string& channel_name, double value);
     int getChannelCount() const;
-    double getSample(int channelIndex, int sampleIndex) const;
-    string getChannelName(int channelIndex) const;
-    SampleVector getAllSamples(int channelIndex) const;
+    double getSample(int channelIdx, int sampleIdx) const;
+    std::string getChannelName(int channelIdx) const;
+    SampleVector getAllSamples(int channelIdx) const;
     bool isValid() const;
 };
 
