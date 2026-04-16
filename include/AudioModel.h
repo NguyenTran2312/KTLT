@@ -7,7 +7,8 @@
 #include "Polynomial.h" // Để có Polynomial
 
 // =======================
-// Channel struct
+// Channel struct đại diện cho một kênh âm thanh
+// Chứa tên kênh, vector mẫu và đa thức xấp xỉ
 // =======================
 struct Channel {
     std::string name;
@@ -18,7 +19,8 @@ struct Channel {
     void addSample(double value);
 };
 // =======================
-// AudioFile struct
+// AudioFile struct đại diện cho một file âm thanh
+// Chứa tên file, sample rate và vector các kênh âm thanh
 // =======================
 struct AudioFile {
     std::string filename;
