@@ -1,25 +1,35 @@
 #ifndef FRACTION_H
 #define FRACTION_H
 
+#include <iostream>
+
+// =======================
+// Fraction struct
+// =======================
 struct Fraction {
-    int numerator;     // tử số
-    int denominator;   // mẫu số
+    int num, den;
 
-    // Constructor mặc định
-    Fraction();
+    // Constructor
+    Fraction(int n = 0, int d = 1);
 
-    // Constructor có tham số
-    Fraction(int num, int den);
-
-    // Hàm rút gọn phân số
+    // Simplify fraction
     void simplify();
-
-    // Hàm in phân số
-    void print() const;
-
-    double toDouble() const;
-
-    
 };
+
+// =======================
+// Operator overloads
+// =======================
+
+// Arithmetic
+Fraction operator+(const Fraction& a, const Fraction& b);
+Fraction operator-(const Fraction& a, const Fraction& b);
+Fraction operator*(const Fraction& a, const Fraction& b);
+Fraction operator/(const Fraction& a, const Fraction& b);
+
+// Comparison
+bool operator==(const Fraction& a, const Fraction& b);
+
+// Output
+std::ostream& operator<<(std::ostream& out, const Fraction& f);
 
 #endif

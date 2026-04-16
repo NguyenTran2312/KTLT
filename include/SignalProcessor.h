@@ -6,7 +6,7 @@
 struct SegmentResult {
     int start_index;
     int end_index;
-    double max_venue;
+    double value;
 };
 
 // 1. Thuật toán Kadane
@@ -21,7 +21,8 @@ int kadane(const std::vector<int>& nums);
 int longestIncreasingSubsequence(const std::vector<int>& nums);
 
 // Các hàm thuật toán lõi (Tham số const & để chống copy mảng tốn RAM)
-SampleVector calculatePrefixSum(const SampleVector& samples);
+SampleVector buildPrefixSum(const SampleVector& samples);
+double getSegmentEnergy(const SampleVector& prefix, int l, int r);
 SampleVector calculateRollingEnergy(const SampleVector& samples, int k);
 SampleVector calculateRollingMean(const SampleVector& samples, int k);
 SegmentResult findBestSegment(const SampleVector& energy_array);
