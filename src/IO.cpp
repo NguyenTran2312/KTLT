@@ -31,7 +31,7 @@ AudioStatus readAudioCSV(const string& filepath, AudioFile& audio){
     ifstream fileIn(filepath);
     if (!fileIn.is_open()) {
         cerr << "Error opening audio file: " << filepath << endl;
-        return AudioStatus::FILE_ERROR;
+        return AudioStatus::ERR_FILE_NOT_FOUND;
     }
     string line;
     // Bỏ qua dòng header nếu có
