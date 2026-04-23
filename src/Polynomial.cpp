@@ -2,6 +2,9 @@
 #include <stdexcept>
 #include <cmath>
 #include <vector>
+#include "Fraction.h"
+
+using namespace std;
 
 struct Polynomial {
     vector<Fraction> coeffs; // coeffs[i] = hệ số của x^i
