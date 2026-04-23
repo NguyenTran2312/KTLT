@@ -1,6 +1,6 @@
 #ifndef SIGNALPROCESSOR_H
 #define SIGNALPROCESSOR_H
-#include <Defines.h>
+#include "Defines.h"
 #include <vector>
 
 struct SegmentResult {
