@@ -5,6 +5,7 @@
 #include <vector>
 #include "AudioModel.h"   // Để dùng struct AudioFile và Channel
 #include "Defines.h"      // Để dùng enum AudioStatus và các bí danh như SampleVector
+#include "SignalProcessor.h"
 
 // =================================================================
 // 1. CÁC HÀM ĐỌC DỮ LIỆU (INPUT)
