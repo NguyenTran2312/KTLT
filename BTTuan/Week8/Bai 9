@@ -1,0 +1,316 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+// ============================================================
+// PHẦN 1A — PHÂN SỐ 
+// ============================================================
+
+struct Fraction { long long num, den; };
+
+long long gcd(long long a, long long b) {
+    a = abs(a); b = abs(b);
+    while (b) { long long t = a % b; a = b; b = t; }
+    return a ? a : 1; // tránh gcd(0,0) = 0
+}
+
+bool normalize(Fraction& f) {
+    if (f.den == 0) return false;
+    if (f.den < 0) { f.num = -f.num; f.den = -f.den; }
+    if (f.num == 0) { f.den = 1; return true; }
+    long long g = gcd(abs(f.num), f.den);
+    f.num /= g; f.den /= g;
+    return true;
+}
+
+Fraction addFrac(Fraction a, Fraction b) {
+    Fraction r = { a.num * b.den + b.num * a.den, a.den * b.den };
+    normalize(r); return r;
+}
+
+Fraction mulFrac(Fraction a, Fraction b) {
+    Fraction r = { a.num * b.num, a.den * b.den };
+    normalize(r); return r;
+}
+
+Fraction divFrac(Fraction a, Fraction b) {
+    if (b.num == 0) return {0, 0};
+    Fraction r = { a.num * b.den, a.den * b.num };
+    normalize(r); return r;
+}
+
+int cmpFrac(Fraction a, Fraction b) {
+    __int128 lhs = (__int128)a.num * b.den;
+    __int128 rhs = (__int128)b.num * a.den;
+    if (lhs < rhs) return -1;
+    if (lhs > rhs) return  1;
+    return 0;
+}
+
+void printFrac(ostream& os, Fraction f) { os << f.num << "/" << f.den; }
+
+bool fracEqual(Fraction a, Fraction b) { return cmpFrac(a, b) == 0; }
+
+// ============================================================
+// PHẦN 1B — MA TRẬN PHÂN SỐ 
+// ============================================================
+
+using FMatrix = vector<vector<Fraction>>;
+
+/* [B5] Đọc ma trận phân số từ file.
+ * Format: dòng đầu "m n", mỗi ô ghi "num/den".
+ */
+bool readFMatrix(const string& path, FMatrix& M, int& rows, int& cols) {
+    ifstream fin(path);
+    if (!fin) { cerr << "Lỗi mở '" << path << "'\n"; return false; }
+    fin >> rows >> cols;
+    M.assign(rows, vector<Fraction>(cols));
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            char slash;
+            fin >> M[i][j].num >> slash >> M[i][j].den;
+            normalize(M[i][j]);
+        }
+    }
+    return true;
+}
+
+/* [B5] Cộng 2 ma trận phân số (cùng kích thước). */
+bool addMatrix(const FMatrix& A, const FMatrix& B, FMatrix& C,
+               int ra, int ca, int rb, int cb) {
+    if (ra != rb || ca != cb) return false;
+    C.assign(ra, vector<Fraction>(ca));
+    for (int i = 0; i < ra; ++i)
+        for (int j = 0; j < ca; ++j)
+            C[i][j] = addFrac(A[i][j], B[i][j]);
+    return true;
+}
+
+/* [B5] Nhân 2 ma trận phân số (cols_A == rows_B). */
+bool mulMatrix(const FMatrix& A, const FMatrix& B, FMatrix& C,
+               int ra, int ca, int rb, int cb) {
+    if (ca != rb) return false;
+    C.assign(ra, vector<Fraction>(cb, {0, 1}));
+    for (int i = 0; i < ra; ++i)
+        for (int k = 0; k < ca; ++k)
+            for (int j = 0; j < cb; ++j)
+                C[i][j] = addFrac(C[i][j], mulFrac(A[i][k], B[k][j]));
+    return true;
+}
+
+void writeFMatrix(ostream& os, const FMatrix& M, int r, int c) {
+    for (int i = 0; i < r; ++i) {
+        for (int j = 0; j < c; ++j) {
+            printFrac(os, M[i][j]);
+            if (j < c-1) os << "  ";
+        }
+        os << "\n";
+    }
+}
+
+// ============================================================
+// PHẦN 1C — ĐA THỨC 
+// ============================================================
+
+struct Poly {
+    string id;
+    int    deg;           // bậc; deg < 0 → invalid
+    vector<double> a;     // hệ số: a[0] = hệ số bậc 0, ..., a[deg] = hệ số bậc cao nhất
+    bool valid;
+};
+
+/* [B1] Đọc danh sách đa thức từ CSV.
+ * Format mỗi dòng: id,degree,a0,a1,...,an
+ * Thiếu hệ số → 0. degree < 0 → invalid.
+ */
+bool readPolysCSV(const string& path, vector<Poly>& polys, int& invalidCnt) {
+    ifstream fin(path);
+    if (!fin) { cerr << "Lỗi mở '" << path << "'\n"; return false; }
+
+    invalidCnt = 0;
+    string line;
+    while (getline(fin, line)) {
+        if (line.empty()) continue;
+        stringstream ss(line);
+        string token;
+        vector<string> cells;
+        while (getline(ss, token, ',')) cells.push_back(token);
+
+        Poly p;
+        p.valid = false;
+        if (cells.size() < 2) { ++invalidCnt; polys.push_back(p); continue; }
+
+        p.id = cells[0];
+        try { p.deg = stoi(cells[1]); } catch(...) { ++invalidCnt; polys.push_back(p); continue; }
+
+        if (p.deg < 0) { ++invalidCnt; polys.push_back(p); continue; }
+
+        // Đọc hệ số; thiếu → 0
+        p.a.resize(p.deg + 1, 0.0);
+        for (int i = 0; i <= p.deg; ++i) {
+            int cellIdx = i + 2;
+            if (cellIdx < (int)cells.size()) {
+                try { p.a[i] = stod(cells[cellIdx]); } catch(...) { p.a[i] = 0.0; }
+            }
+        }
+        p.valid = true;
+        polys.push_back(p);
+    }
+    return true;
+}
+
+/* [B2] Tính P(x) bằng thuật toán Horner.
+ * P(x) = a[n]·xⁿ + ... + a[1]·x + a[0]
+ * Horner: res = a[n]; for i=n-1..0: res = res*x + a[i]
+ */
+double evalHorner(const vector<double>& a, double x) {
+    if (a.empty()) return 0.0;
+    double res = a.back();
+    for (int i = (int)a.size() - 2; i >= 0; --i)
+        res = res * x + a[i];
+    return res;
+}
+
+/* [B5] Tính hệ số đa thức đạo hàm P'(x).
+ * Nếu P(x) = Σ a[i]·xⁱ thì P'(x) = Σ i·a[i]·x^(i-1)
+ * Hệ số: deriv[i] = (i+1)·a[i+1], i = 0..deg-1
+ */
+vector<double> computeDerivCoeffs(const vector<double>& a) {
+    if (a.size() <= 1) return {0.0}; // hằng số → đạo hàm = 0
+    int n = (int)a.size() - 1;       // bậc của đa thức gốc
+    vector<double> d(n);
+    for (int i = 0; i < n; ++i)
+        d[i] = (i + 1) * a[i + 1];
+    return d;
+}
+
+// ============================================================
+// BÀI 9 — Đa thức Lagrange nội suy
+// ============================================================
+/*
+ * Công thức Lagrange:
+ *   P(x_q) = Σ_{i=0}^{n-1}  y_i * L_i(x_q)
+ *
+ * Với L_i(x_q) = Π_{j ≠ i} (x_q - x_j) / (x_i - x_j)
+ *
+ * Không cần tính hệ số đa thức — chỉ tính trực tiếp P(x_q).
+ *
+ * Thuật toán O(n²) cho mỗi điểm query:
+ *   Với mỗi i, tính L_i(x_q) bằng vòng lặp qua j ≠ i.
+ *   Tích lũy tổng weighted.
+ *
+ * Case biên:
+ *   - n = 0 → không có đa thức, P = 0 cho mọi x_q.
+ *   - n = 1 → P(x_q) = y_0 (đa thức hằng).
+ *   - Điểm x_q trùng với x_i → L_i = 1, L_j = 0 → P(x_q) = y_i (đúng).
+ *   - Điểm không trùng x_i nào → nội suy bình thường.
+ */
+
+struct Point { double x, y; };
+
+double lagrange(const vector<Point>& pts, double xq) {
+    int n = (int)pts.size();
+    if (n == 0) return 0.0;
+    if (n == 1) return pts[0].y;
+
+    double P = 0.0;
+    for (int i = 0; i < n; ++i) {
+        // Tính L_i(x_q)
+        double Li = 1.0;
+        for (int j = 0; j < n; ++j) {
+            if (j == i) continue;
+            // (x_q - x_j) / (x_i - x_j)
+            Li *= (xq - pts[j].x) / (pts[i].x - pts[j].x);
+        }
+        P += pts[i].y * Li;
+    }
+    return P;
+}
+
+void bai9(const string& ptsPath, const string& qryPath, const string& outPath) {
+    // Đọc điểm nội suy
+    ifstream fpts(ptsPath);
+    if (!fpts) { cerr << "[B9] Lỗi mở " << ptsPath << "\n"; return; }
+
+    vector<Point> pts;
+    string line;
+    getline(fpts, line); // bỏ header nếu có "x,y"
+    // Nếu dòng đầu không parse được thì thử parse lại
+    {
+        stringstream ss(line);
+        double a, b; char comma;
+        if (ss >> a >> comma >> b) pts.push_back({a, b}); // header là data
+    }
+    while (getline(fpts, line)) {
+        if (line.empty()) continue;
+        stringstream ss(line);
+        double a, b; char comma;
+        if (ss >> a >> comma >> b) pts.push_back({a, b});
+    }
+
+    // Đọc query points
+    ifstream fqry(qryPath);
+    if (!fqry) { cerr << "[B9] Lỗi mở " << qryPath << "\n"; return; }
+
+    vector<double> queries;
+    string tok;
+    while (getline(fqry, tok)) {
+        if (tok.empty()) continue;
+        try { queries.push_back(stod(tok)); } catch(...) {}
+    }
+
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B9] Lỗi ghi " << outPath << "\n"; return; }
+
+    fout << "x_q,P(x_q)\n";
+    fout << fixed << setprecision(6);
+
+    for (double xq : queries) {
+        double val = lagrange(pts, xq);
+        fout << xq << "," << val << "\n";
+    }
+
+    cout << "[B9] Noi suy Lagrange: " << pts.size() << " diem, "
+         << queries.size() << " query, ghi " << outPath << "\n";
+}
+
+
+
+void createSampleFiles() {
+    // points.csv — nội suy Lagrange qua 3 điểm
+    {
+        ofstream f("points.csv");
+        // 3 điểm của đường parabol y = x²: (0,0),(1,1),(2,4)
+        f << "0,0\n1,1\n2,4\n";
+    }
+    // query.csv — các điểm cần nội suy
+    {
+        ofstream f("query.csv");
+        f << "0.5\n1.5\n3\n"; // 3 là ngoài nhưng Lagrange vẫn tính được
+    }
+    
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 9: Lagrange nội suy ---
+    cout << "\n--- Bai 9: Lagrange noi suy ---\n";
+    bai9("points.csv", "query.csv", "b9_interp.csv");
+    // Nội suy y=x² qua 3 điểm (0,0),(1,1),(2,4):
+    //   x=0.5 → P=0.25, x=1.5 → P=2.25, x=3 → P=9 (ngoại suy đúng!)
+
+    
+    return 0;
+}
