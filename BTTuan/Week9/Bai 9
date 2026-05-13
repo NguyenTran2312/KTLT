@@ -1,0 +1,233 @@
+/*
+ * tuan9_bai7den10.cpp
+ * TUẦN 9 — Chuỗi nâng cao: Normalize, Tokenize, Frequency  (Bài 7 → 10)
+ * ========================================================================
+ * Hàm TÁI SỬ DỤNG từ Bài 1–6 (khai báo ở PHẦN 1):
+ *   [B1] normalizeLine()    — lowercase, ký tự non-alphanum → space, gom space
+ *   [B2] tokenize()         — tách chuỗi đã normalize thành vector<string>
+ *   [B3] topK()             — top-K từ xuất hiện nhiều nhất
+ *   [B4] loadStopwords()    — đọc stopwords từ file
+ *   [B4] filterStopwords()  — lọc token theo stopwords
+ *   [B5] buildFreqMap()     — xây unordered_map<string,int> tần suất
+ *
+ * Bài MỚI (7–10):
+ *   B7 : Phát hiện từ lặp liên tiếp (≥ 2 lần)
+ *   B8 : Tần suất ký tự a-z trên toàn file
+ *   B9 : Nhận diện ngôn ngữ (EN / VI_SIMPLE / UNKNOWN)
+ *   B10: TF-IDF đơn giản trên tập file — top-5 từ mỗi file
+ *
+ * Biên dịch: g++ -std=c++11 -Wall -o tuan9 tuan9_bai7den10.cpp
+ */
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+
+/* [B1] Trim khoảng trắng đầu/cuối. */
+string trim(const string& s) {
+    int l = 0, r = (int)s.size() - 1;
+    while (l <= r && isspace((unsigned char)s[l])) ++l;
+    while (r >= l && isspace((unsigned char)s[r])) --r;
+    return s.substr(l, r - l + 1);
+}
+
+/* [B1] Normalize 1 dòng văn bản:
+ *   1. Chuyển lowercase.
+ *   2. Mọi ký tự không phải chữ/số (non-alphanum) → space.
+ *   3. Gom nhiều space liên tiếp thành 1 space.
+ *   4. Trim đầu/cuối.
+ * Chỉ xử lý ASCII (isalnum sẽ trả false với ký tự UTF-8 đa byte).
+ */
+string normalizeLine(const string& s) {
+    string result;
+    bool prevSpace = true; // bắt đầu coi như đang ở space để không thêm space đầu
+    for (unsigned char ch : s) {
+        if (isalnum(ch)) {
+            result += tolower(ch);
+            prevSpace = false;
+        } else {
+            // Ký tự đặc biệt → space; gom liên tiếp thành 1
+            if (!prevSpace) {
+                result += ' ';
+                prevSpace = true;
+            }
+        }
+    }
+    // Bỏ space cuối nếu có
+    if (!result.empty() && result.back() == ' ')
+        result.pop_back();
+    return result;
+}
+
+/* [B2] Tách chuỗi đã normalize thành danh sách token theo khoảng trắng. */
+vector<string> tokenize(const string& normalizedLine) {
+    vector<string> tokens;
+    stringstream ss(normalizedLine);
+    string tok;
+    while (ss >> tok) tokens.push_back(tok);
+    return tokens;
+}
+
+/* [B3] Top-K từ xuất hiện nhiều nhất.
+ * Sắp xếp: giảm theo count; nếu bằng → tăng theo thứ tự từ điển.
+ */
+vector<pair<string,int>> topK(const unordered_map<string,int>& freq, int k) {
+    vector<pair<string,int>> vec(freq.begin(), freq.end());
+    sort(vec.begin(), vec.end(), [](const pair<string,int>& a,
+                                    const pair<string,int>& b) {
+        if (a.second != b.second) return a.second > b.second; // giảm theo count
+        return a.first < b.first;                              // tăng theo từ
+    });
+    if (k >= 0 && k < (int)vec.size()) vec.resize(k);
+    return vec;
+}
+
+/* [B4] Đọc danh sách stopwords từ file (1 từ mỗi dòng, đã normalize). */
+unordered_set<string> loadStopwords(const string& path) {
+    unordered_set<string> stops;
+    ifstream fin(path);
+    if (!fin) return stops; // không có file → stop empty (không lọc gì)
+    string line;
+    while (getline(fin, line)) {
+        string w = normalizeLine(trim(line));
+        if (!w.empty()) stops.insert(w);
+    }
+    return stops;
+}
+
+/* [B4] Lọc token theo stopwords. */
+vector<string> filterStopwords(const vector<string>& tokens,
+                                const unordered_set<string>& stops) {
+    vector<string> out;
+    for (const auto& t : tokens)
+        if (!stops.count(t)) out.push_back(t);
+    return out;
+}
+
+/* [B5] Xây dựng bảng tần suất từ danh sách token. */
+unordered_map<string,int> buildFreqMap(const vector<string>& tokens) {
+    unordered_map<string,int> freq;
+    for (const auto& t : tokens) freq[t]++;
+    return freq;
+}
+
+/* Hàm tiện ích: đọc toàn bộ file text, normalize từng dòng, trả về vector token. */
+vector<string> readAndTokenizeFile(const string& path) {
+    ifstream fin(path);
+    if (!fin) { cerr << "Lỗi mở '" << path << "'\n"; return {}; }
+    vector<string> allTokens;
+    string line;
+    while (getline(fin, line)) {
+        string norm = normalizeLine(line);
+        auto toks = tokenize(norm);
+        for (auto& t : toks) allTokens.push_back(t);
+    }
+    return allTokens;
+}
+
+// ============================================================
+// BÀI 9 — Nhận diện ngôn ngữ đơn giản
+// ============================================================
+/*
+ * Chiến lược:
+ *   - Đọc từng byte của file.
+ *   - Đếm:
+ *       + total_chars: tổng số ký tự có thể in (32 ≤ code ≤ 126 là ASCII in được)
+ *         + cả byte ≥ 128 (ký tự Unicode/UTF-8 đa byte)
+ *       + non_ascii: số byte có giá trị > 126 (ký tự ngoài ASCII chuẩn)
+ *
+ * Quy tắc:
+ *   - Nếu non_ascii > 5% total_printable → VI_SIMPLE
+ *     (có khả năng là tiếng Việt với ký tự đặc biệt như ă, â, đ, ơ, ư...)
+ *   - Nếu total = 0 → UNKNOWN (file rỗng)
+ *   - Ngược lại → EN
+ *
+ * Lưu ý: đây là heuristic đơn giản, không cần xử lý UTF-8 đầy đủ.
+ *
+ * Case biên:
+ *   - File rỗng → UNKNOWN.
+ *   - File toàn ASCII → EN.
+ *   - File nhiều ký tự Unicode (>5%) → VI_SIMPLE.
+ */
+void bai9(const string& textPath, const string& outPath) {
+    ifstream fin(textPath, ios::binary); // mở binary để đọc từng byte chính xác
+    if (!fin) { cerr << "[B9] Lỗi mở " << textPath << "\n"; return; }
+ 
+    long long totalPrintable = 0;
+    long long nonAscii = 0;
+ 
+    unsigned char byte;
+    while (fin.read(reinterpret_cast<char*>(&byte), 1)) {
+        // Ký tự có thể in hoặc dấu cách (bỏ qua control chars < 32 và 127)
+        if (byte >= 32 && byte != 127) {
+            ++totalPrintable;
+            if (byte > 126) ++nonAscii; // ngoài ASCII chuẩn
+        }
+    }
+ 
+    string lang;
+    if (totalPrintable == 0) {
+        lang = "UNKNOWN";    // file rỗng hoặc chỉ control chars
+    } else {
+        double ratio = (double)nonAscii / (double)totalPrintable;
+        if (ratio > 0.05) lang = "VI_SIMPLE";
+        else               lang = "EN";
+    }
+ 
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B9] Lỗi ghi " << outPath << "\n"; return; }
+    fout << lang << "\n";
+    fout << "total_printable=" << totalPrintable << "\n";
+    fout << "non_ascii=" << nonAscii << "\n";
+ 
+    cout << "[B9] Ket qua nhan dien: " << lang
+         << "  (non_ascii=" << nonAscii
+         << "/" << totalPrintable << ")\n";
+}
+
+
+void createSampleFiles() {
+    // text.txt — văn bản tiếng Anh với một số từ lặp liên tiếp
+    {
+        ofstream f("text.txt");
+        f << "The the quick brown fox jumps over the lazy dog\n"
+          << "Hello hello world world world this is a test test\n"
+          << "No repeats here at all\n"
+          << "One one one token repeated three times\n"
+          << "\n"                                          // dòng rỗng
+          << "The END end End of file\n";
+    }
+    // text_vi.txt — giả lập tiếng Việt với byte > 126
+    {
+        ofstream f("text_vi.txt", ios::binary);
+        // "Tiếng Việt" có nhiều byte > 126 trong UTF-8
+        string s = "Ti\xE1\xBA\xBFng Vi\xE1\xBB\x87t r\xe1\xba\xa5t ph\xe1\xba\xb9\n";
+        f.write(s.data(), s.size());
+        f << "Hello world\n";
+    }
+    
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 9: Nhận diện ngôn ngữ ---
+    cout << "\n--- Bai 9: Nhan dien ngon ngu ---\n";
+    cout << "  text.txt (EN):    "; bai9("text.txt",    "b9_en.txt");
+    cout << "  text_vi.txt (VI): "; bai9("text_vi.txt", "b9_vi.txt");
+    cout << "  empty.txt (UNKN): "; bai9("empty.txt",   "b9_empty.txt");
+
+    return 0;
+}
