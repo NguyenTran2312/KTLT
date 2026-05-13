@@ -1,24 +1,3 @@
-/*
- * tuan9_bai7den10.cpp
- * TUẦN 9 — Chuỗi nâng cao: Normalize, Tokenize, Frequency  (Bài 7 → 10)
- * ========================================================================
- * Hàm TÁI SỬ DỤNG từ Bài 1–6 (khai báo ở PHẦN 1):
- *   [B1] normalizeLine()    — lowercase, ký tự non-alphanum → space, gom space
- *   [B2] tokenize()         — tách chuỗi đã normalize thành vector<string>
- *   [B3] topK()             — top-K từ xuất hiện nhiều nhất
- *   [B4] loadStopwords()    — đọc stopwords từ file
- *   [B4] filterStopwords()  — lọc token theo stopwords
- *   [B5] buildFreqMap()     — xây unordered_map<string,int> tần suất
- *
- * Bài MỚI (7–10):
- *   B7 : Phát hiện từ lặp liên tiếp (≥ 2 lần)
- *   B8 : Tần suất ký tự a-z trên toàn file
- *   B9 : Nhận diện ngôn ngữ (EN / VI_SIMPLE / UNKNOWN)
- *   B10: TF-IDF đơn giản trên tập file — top-5 từ mỗi file
- *
- * Biên dịch: g++ -std=c++11 -Wall -o tuan9 tuan9_bai7den10.cpp
- */
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
