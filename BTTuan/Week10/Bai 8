@@ -1,0 +1,318 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+/* ── Tiện ích chuỗi ── */
+
+string trim(const string& s) {
+    int l = 0, r = (int)s.size() - 1;
+    while (l <= r && isspace((unsigned char)s[l])) ++l;
+    while (r >= l && isspace((unsigned char)s[r])) --r;
+    return (l > r) ? "" : s.substr(l, r - l + 1);
+}
+
+/* [B1/T1] Kiểm tra token missing (NA, NaN, n/a, rỗng). */
+bool isMissing(const string& raw) {
+    string t = trim(raw);
+    if (t.empty()) return true;
+    string lo = t;
+    for (char& c : lo) c = tolower(c);
+    return (lo == "na" || lo == "nan" || lo == "n/a");
+}
+
+/* [B1/T1] Tách 1 dòng CSV thành các cell (delimiter = ','). */
+vector<string> splitCSV(const string& line) {
+    vector<string> cells;
+    stringstream ss(line);
+    string cell;
+    while (getline(ss, cell, ',')) cells.push_back(trim(cell));
+    return cells;
+}
+
+/* ── Struct thống kê cột ── */
+struct ColStats {
+    string  colName;
+    int     count   = 0;   // số giá trị hợp lệ
+    int     missing = 0;
+    double  minVal  = 0, maxVal = 0, mean = 0, std = 0;
+    bool    empty   = true; // true nếu count == 0
+};
+
+/*
+ * [B2/T10] Tính thống kê cho 1 cột số thực (vector<double> đã lọc missing).
+ *   mean = Σxi / n
+ *   std  = sqrt(Σ(xi - mean)² / n)  — variance quần thể
+ * Dùng long double để tích lũy tránh mất độ chính xác.
+ */
+ColStats computeColStats(const string& name,
+                         const vector<double>& vals,
+                         int missingCount) {
+    ColStats s;
+    s.colName = name;
+    s.missing = missingCount;
+    s.count   = (int)vals.size();
+    if (s.count == 0) { s.empty = true; return s; }
+    s.empty   = false;
+    s.minVal  = *min_element(vals.begin(), vals.end());
+    s.maxVal  = *max_element(vals.begin(), vals.end());
+
+    long double sum = 0;
+    for (double v : vals) sum += v;
+    s.mean = (double)(sum / s.count);
+
+    long double varAcc = 0;
+    for (double v : vals) {
+        long double diff = v - s.mean;
+        varAcc += diff * diff;
+    }
+    s.std = (double)sqrt((double)(varAcc / s.count));
+    return s;
+}
+
+/*
+ * [B1/T10] Đọc data.csv nhiều cột: dòng đầu là header (id + N cột số).
+ * Trả về:
+ *   headers   — tên cột (bỏ cột id đầu tiên)
+ *   ids       — danh sách id từng hàng
+ *   colData   — colData[j][i] = giá trị hợp lệ hàng i cột j (NaN nếu missing)
+ *   colMiss   — colMiss[j] = số missing cột j
+ * Trả về false nếu không mở được file.
+ */
+struct MultiColData {
+    vector<string>              headers;   // tên cột số (không có "id")
+    vector<string>              ids;
+    vector<vector<double>>      rawVals;   // rawVals[row][col], NaN nếu missing
+    vector<vector<double>>      validVals; // validVals[col] = các giá trị không missing
+    vector<int>                 colMiss;
+};
+
+bool parseMultiColCSV(const string& path, MultiColData& D) {
+    ifstream fin(path);
+    if (!fin) { cerr << "[parseMultiColCSV] Lỗi mở '" << path << "'\n"; return false; }
+
+    string line;
+    // Đọc header
+    if (!getline(fin, line)) { cerr << "File rỗng.\n"; return false; }
+    auto hdr = splitCSV(line);
+    if (hdr.empty()) return false;
+    // Bỏ cột đầu tiên (id)
+    for (int j = 1; j < (int)hdr.size(); ++j) D.headers.push_back(hdr[j]);
+    int nCols = (int)D.headers.size();
+
+    D.validVals.resize(nCols);
+    D.colMiss.assign(nCols, 0);
+
+    while (getline(fin, line)) {
+        if (trim(line).empty()) continue;
+        auto cells = splitCSV(line);
+
+        string id = cells.empty() ? "UNKNOWN" : cells[0];
+        D.ids.push_back(id);
+
+        vector<double> row(nCols, NAN);
+        for (int j = 0; j < nCols; ++j) {
+            int ci = j + 1; // +1 vì bỏ qua cột id
+            if (ci >= (int)cells.size() || isMissing(cells[ci])) {
+                D.colMiss[j]++;
+            } else {
+                try {
+                    double v = stod(cells[ci]);
+                    row[j] = v;
+                    D.validVals[j].push_back(v);
+                } catch (...) {
+                    D.colMiss[j]++;
+                }
+            }
+        }
+        D.rawVals.push_back(row);
+    }
+    return true;
+}
+
+/* [B4/T3] Prefix sum long long. */
+vector<long long> buildPrefix(const vector<long long>& a) {
+    int n = (int)a.size();
+    vector<long long> pre(n, 0);
+    if (n == 0) return pre;
+    pre[0] = a[0];
+    for (int i = 1; i < n; ++i) pre[i] = pre[i-1] + a[i];
+    return pre;
+}
+
+bool sumRange(const vector<long long>& pre, int l, int r, long long& ans) {
+    int n = (int)pre.size();
+    if (l < 0 || r >= n || l > r) return false;
+    ans = pre[r] - (l > 0 ? pre[l-1] : 0);
+    return true;
+}
+
+/* [B5/T9] Chuỗi: normalize, tokenize, tần suất, top-K. */
+string normalizeLine(const string& s) {
+    string result; bool prevSpace = true;
+    for (unsigned char ch : s) {
+        if (isalnum(ch)) { result += tolower(ch); prevSpace = false; }
+        else if (!prevSpace) { result += ' '; prevSpace = true; }
+    }
+    if (!result.empty() && result.back() == ' ') result.pop_back();
+    return result;
+}
+
+vector<string> tokenize(const string& norm) {
+    vector<string> tokens;
+    stringstream ss(norm); string tok;
+    while (ss >> tok) tokens.push_back(tok);
+    return tokens;
+}
+
+unordered_map<string,int> buildFreqMap(const vector<string>& tokens) {
+    unordered_map<string,int> freq;
+    for (const auto& t : tokens) freq[t]++;
+    return freq;
+}
+
+vector<pair<string,int>> topK(const unordered_map<string,int>& freq, int k) {
+    vector<pair<string,int>> vec(freq.begin(), freq.end());
+    sort(vec.begin(), vec.end(), [](const pair<string,int>& a,
+                                    const pair<string,int>& b){
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
+    });
+    if (k >= 0 && k < (int)vec.size()) vec.resize(k);
+    return vec;
+}
+
+// ============================================================
+// BÀI 8 — Sort + search tổng hợp
+// ============================================================
+/*
+ * Quy trình:
+ *   1. Đọc records.csv (id, score) — dùng splitCSV() từ B1.
+ *   2. Stable sort theo score GIẢM dần (stable giữ nguyên thứ tự id nếu score bằng).
+ *   3. Với mỗi id trong queries.txt:
+ *        - Tìm trong map<id → record_index_in_sorted> → O(1).
+ *        - In rank (1-based), id, score.
+ *        - Nếu không tìm thấy → NOT_FOUND.
+ *
+ * Tại sao dùng stable_sort?
+ *   Đề bài yêu cầu "stable sort theo score giảm" để thứ tự các id
+ *   bằng score được giữ như thứ tự xuất hiện ban đầu trong file.
+ *
+ * Case biên:
+ *   - File records rỗng → mọi query đều NOT_FOUND.
+ *   - 2 id cùng score → rank nhỏ hơn thuộc id xuất hiện trước.
+ *   - Query id không có trong records → NOT_FOUND.
+ */
+struct Record {
+    string id;
+    double score;
+};
+ 
+void bai8(const string& recPath, const string& qryPath, const string& outPath) {
+    // Đọc records
+    ifstream frec(recPath);
+    if (!frec) { cerr << "[B8] Lỗi mở " << recPath << "\n"; return; }
+ 
+    vector<Record> records;
+    string line;
+    getline(frec, line); // bỏ header "id,score"
+    while (getline(frec, line)) {
+        if (trim(line).empty()) continue;
+        auto cells = splitCSV(line);
+        if (cells.size() < 2) continue;
+        try {
+            Record r;
+            r.id    = cells[0];
+            r.score = stod(cells[1]);
+            records.push_back(r);
+        } catch (...) {}
+    }
+ 
+    // Stable sort theo score giảm dần
+    stable_sort(records.begin(), records.end(),
+                [](const Record& a, const Record& b){ return a.score > b.score; });
+ 
+    // Xây map id → rank (1-based)
+    unordered_map<string, int> rankMap;
+    for (int i = 0; i < (int)records.size(); ++i)
+        rankMap[records[i].id] = i + 1;
+ 
+    // Đọc queries
+    ifstream fqry(qryPath);
+    if (!fqry) { cerr << "[B8] Lỗi mở " << qryPath << "\n"; return; }
+ 
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B8] Lỗi ghi " << outPath << "\n"; return; }
+    fout << fixed << setprecision(2);
+    fout << "rank,id,score\n";
+ 
+    int found = 0, notFound = 0;
+    while (getline(fqry, line)) {
+        string qid = trim(line);
+        if (qid.empty()) continue;
+        auto it = rankMap.find(qid);
+        if (it == rankMap.end()) {
+            fout << "NOT_FOUND," << qid << ",-\n";
+            ++notFound;
+        } else {
+            int rk = it->second;
+            fout << rk << "," << records[rk-1].id << "," << records[rk-1].score << "\n";
+            ++found;
+        }
+    }
+ 
+    cout << "[B8] Tim thay=" << found << "  NOT_FOUND=" << notFound
+         << ", ghi " << outPath << "\n";
+}
+
+
+
+void createSampleFiles() {
+    // records.csv — cho bài 8
+    {
+        ofstream f("records.csv");
+        f << "id,score\n"
+          << "Alice,88.5\n"
+          << "Bob,92.0\n"
+          << "Carol,75.0\n"
+          << "Dave,92.0\n"   // cùng score với Bob → stable sort giữ thứ tự Bob < Dave
+          << "Eve,60.5\n"
+          << "Frank,78.0\n";
+    }
+    // queries.txt — cho bài 8
+    {
+        ofstream f("queries.txt");
+        f << "Bob\nEve\nAlice\nZara\nDave\n"; // Zara không tồn tại → NOT_FOUND
+    }
+    
+}
+
+int main() {
+    createSampleFiles();
+
+    // ── Bài 8: Sort + search ──
+    cout << "\n--- Bai 8: Sort theo score, tra cuu rank ---\n";
+    bai8("records.csv", "queries.txt", "b8_result.csv");
+    // Bob rank=1 (score=92, xuất hiện trước Dave), Dave rank=2
+    // Zara → NOT_FOUND
+ 
+    // Case biên: records rỗng
+    {
+        ofstream f("rec_empty.csv"); f << "id,score\n";
+        ofstream q("qry_empty.txt"); q << "Someone\n";
+    }
+    cout << "       (Bien) Records rong: ";
+    bai8("rec_empty.csv", "qry_empty.txt", "b8_empty.csv");
+
+    return 0;
+}
