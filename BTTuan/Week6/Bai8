@@ -1,0 +1,185 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+// Kiểu tiện dụng cho ma trận số nguyên
+using Matrix = vector<vector<long long>>;
+
+/* [B1] Đọc ma trận m×n từ file.
+ * Format file: dòng đầu "<m> <n>", sau đó m dòng × n số nguyên.
+ * Trả về false và in cerr nếu không mở được file.
+ */
+bool readMatrix(const string& path, Matrix& mat, int& m, int& n) {
+    ifstream fin(path);
+    if (!fin) {
+        cerr << "[readMatrix] Lỗi: không mở được file '" << path << "'\n";
+        return false;
+    }
+    fin >> m >> n;
+    mat.assign(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i)
+        for (int j = 0; j < n; ++j)
+            fin >> mat[i][j];
+    return true;
+}
+
+/* [B2] Kiểm tra ma trận vuông n×n có đối xứng không.
+ * a[i][j] == a[j][i] với mọi i < j.
+ */
+bool isSymmetric(const Matrix& mat, int n) {
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (mat[i][j] != mat[j][i]) return false;
+    return true;
+}
+
+/* [B3] Xây dựng prefix sum 2D.
+ * pre[i][j] = tổng tất cả phần tử trong hình chữ nhật (0,0)→(i,j).
+ * Công thức: pre[i][j] = a[i][j]
+ *                       + pre[i-1][j]   (hàng trên)
+ *                       + pre[i][j-1]   (cột trái)
+ *                       - pre[i-1][j-1] (bù góc tính 2 lần)
+ */
+Matrix buildPre2D(const Matrix& a, int m, int n) {
+    Matrix pre(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            pre[i][j] = a[i][j];
+            if (i > 0) pre[i][j] += pre[i-1][j];
+            if (j > 0) pre[i][j] += pre[i][j-1];
+            if (i > 0 && j > 0) pre[i][j] -= pre[i-1][j-1];
+        }
+    }
+    return pre;
+}
+
+/* [B4] Truy vấn tổng vùng chữ nhật (x1,y1)→(x2,y2) — O(1).
+ * Công thức bù trừ từ prefix 2D.
+ * Trả về false nếu chỉ số không hợp lệ.
+ */
+bool sumRect(const Matrix& pre,
+             int x1, int y1, int x2, int y2,
+             int m, int n, long long& ans) {
+    if (x1 < 0 || y1 < 0 || x2 >= m || y2 >= n || x1 > x2 || y1 > y2)
+        return false;
+    ans = pre[x2][y2];
+    if (x1 > 0) ans -= pre[x1-1][y2];
+    if (y1 > 0) ans -= pre[x2][y1-1];
+    if (x1 > 0 && y1 > 0) ans += pre[x1-1][y1-1];
+    return true;
+}
+
+/* [B5] Tổng đường chéo chính và phụ của ma trận vuông. */
+void diagSums(const Matrix& mat, int n, long long& mainD, long long& antiD) {
+    mainD = antiD = 0;
+    for (int i = 0; i < n; ++i) {
+        mainD += mat[i][i];
+        antiD += mat[i][n-1-i];
+    }
+}
+
+// ============================================================
+// BÀI 8 — Kiểm tra ma trận tam giác trên / dưới
+// ============================================================
+/*
+ * Định nghĩa:
+ *   Upper triangular: a[i][j] = 0 với mọi i > j  (phần dưới đường chéo = 0)
+ *   Lower triangular: a[i][j] = 0 với mọi i < j  (phần trên đường chéo = 0)
+ *
+ * Chú ý: bài chỉ áp dụng cho ma trận vuông.
+ *   Nếu không vuông → cả 2 đều = 0.
+ *
+ * Case biên:
+ *   - n=0 → EMPTY.
+ *   - n=1 → vừa upper vừa lower.
+ *   - Ma trận đường chéo → vừa upper vừa lower.
+ */
+void bai8(const string& matPath, const string& outPath) {
+    Matrix mat; int m, n;
+    if (!readMatrix(matPath, mat, m, n)) return;
+ 
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B8] Lỗi ghi " << outPath << "\n"; return; }
+ 
+    if (m == 0 || n == 0) {
+        fout << "EMPTY\n";
+        cout << "[B8] Ma tran rong.\n";
+        return;
+    }
+ 
+    // Không phải ma trận vuông → không xét được
+    if (m != n) {
+        fout << "is_upper=0\nis_lower=0\n";
+        fout << "Note: not square (" << m << "x" << n << ")\n";
+        cout << "[B8] Khong vuong -> is_upper=0, is_lower=0\n";
+        return;
+    }
+ 
+    bool isUpper = true, isLower = true;
+    for (int i = 0; i < n && (isUpper || isLower); ++i) {
+        for (int j = 0; j < n; ++j) {
+            // Phần tử bên DƯỚI đường chéo (i > j) phải = 0 để là upper
+            if (i > j && mat[i][j] != 0) isUpper = false;
+            // Phần tử bên TRÊN đường chéo (i < j) phải = 0 để là lower
+            if (i < j && mat[i][j] != 0) isLower = false;
+        }
+    }
+ 
+    fout << "is_upper=" << (isUpper ? 1 : 0) << "\n";
+    fout << "is_lower=" << (isLower ? 1 : 0) << "\n";
+    cout << "[B8] is_upper=" << isUpper << "  is_lower=" << isLower << "\n";
+}
+
+void createSampleFiles() {
+    // tri_upper.txt — ma trận upper triangular 3×3
+    {
+        ofstream f("tri_upper.txt");
+        f << "3 3\n"
+          << "1 2 3\n"
+          << "0 4 5\n"
+          << "0 0 6\n";
+    }
+    // tri_lower.txt — ma trận lower triangular 3×3
+    {
+        ofstream f("tri_lower.txt");
+        f << "3 3\n"
+          << "1 0 0\n"
+          << "2 3 0\n"
+          << "4 5 6\n";
+    }
+    // mat_rect.txt — ma trận 3×4 để test xoay (không vuông)
+    {
+        ofstream f("mat_rect.txt");
+        f << "3 4\n"
+          << "1 2 3 4\n"
+          << "5 6 7 8\n"
+          << "9 10 11 12\n";
+    }
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 8: Kiểm tra tam giác ---
+    cout << "\n--- Bai 8: Upper triangular ---\n";
+    bai8("tri_upper.txt", "b8_upper_out.txt");  // kỳ vọng: is_upper=1, is_lower=0
+ 
+    cout << "\n--- Bai 8: Lower triangular ---\n";
+    bai8("tri_lower.txt", "b8_lower_out.txt");  // kỳ vọng: is_upper=0, is_lower=1
+ 
+    cout << "\n--- Bai 8: Ma tran khong vuong ---\n";
+    bai8("mat_rect.txt", "b8_rect_out.txt");    // kỳ vọng: is_upper=0, is_lower=0
+
+    return 0;
+}
