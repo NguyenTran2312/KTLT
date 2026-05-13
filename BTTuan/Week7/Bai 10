@@ -1,0 +1,283 @@
+/*
+ * tuan7_bai7den10.cpp
+ * TUẦN 7 — Struct Toán: Phân số (Fraction)  (Bài 7 → 10)
+ * =========================================================
+ * Hàm TÁI SỬ DỤNG từ Bài 1–6 (khai báo ở PHẦN 1):
+ *   [B1] gcd()        — ước số chung lớn nhất (Euclid)
+ *   [B1] normalize()  — rút gọn, mẫu dương, 0/x → 0/1
+ *   [B2] addFrac()    — a/b + c/d
+ *   [B2] subFrac()    — a/b - c/d
+ *   [B3] cmpFrac()    — so sánh 2 phân số (dùng __int128)
+ *   [B4] sumAllFrac() — tổng tất cả phân số hợp lệ
+ *   [B5] inRange()    — kiểm tra phân số thuộc [lo, hi]
+ *   [B6] mulFrac()    — a/b × c/d
+ *   [B6] divFrac()    — a/b ÷ c/d
+ *
+ * Bài MỚI (7–10):
+ *   B7 : Phân số lớn nhất và nhỏ nhất
+ *   B8 : Trung bình (mean) các phân số hợp lệ
+ *   B9 : Kiểm tra phân số là số nguyên (den == 1 sau normalize)
+ *   B10: Dãy Farey bậc N — sinh, lọc, sắp xếp
+ *
+ * Biên dịch: g++ -std=c++11 -Wall -o tuan7 tuan7_bai7den10.cpp
+ * Lưu ý: __int128 chỉ dùng được trên GCC/Clang, KHÔNG dùng MSVC.
+ */
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+
+struct Fraction {
+    long long num, den; // tử số, mẫu số
+};
+
+/* [B1] Ước số chung lớn nhất — thuật toán Euclid. */
+long long gcd(long long a, long long b) {
+    a = abs(a); b = abs(b);
+    while (b) { long long t = a % b; a = b; b = t; }
+    return a;
+}
+
+/* [B1] Chuẩn hoá phân số:
+ *   - den < 0 → đổi dấu cả num và den.
+ *   - Rút gọn bằng gcd(|num|, den).
+ *   - 0/x → 0/1.
+ *   Trả về false nếu den = 0 (phân số không hợp lệ).
+ */
+bool normalize(Fraction& f) {
+    if (f.den == 0) return false;       // mẫu = 0: không hợp lệ
+    if (f.den < 0) { f.num = -f.num; f.den = -f.den; } // mẫu phải dương
+    if (f.num == 0) { f.den = 1; return true; }         // 0/x → 0/1
+    long long g = gcd(abs(f.num), f.den);
+    f.num /= g; f.den /= g;
+    return true;
+}
+
+/* [B2] Cộng 2 phân số: a/b + c/d = (a*d + c*b) / (b*d). */
+Fraction addFrac(Fraction a, Fraction b) {
+    Fraction r;
+    r.num = a.num * b.den + b.num * a.den;
+    r.den = a.den * b.den;
+    normalize(r);
+    return r;
+}
+
+/* [B2] Trừ 2 phân số: a/b - c/d = (a*d - c*b) / (b*d). */
+Fraction subFrac(Fraction a, Fraction b) {
+    b.num = -b.num;   // đổi dấu rồi cộng
+    return addFrac(a, b);
+}
+
+/* [B3] So sánh 2 phân số đã chuẩn hoá (mẫu dương).
+ *   a < b ⟺ a.num * b.den < b.num * a.den
+ *   Dùng __int128 tránh tràn số khi num và den lớn.
+ *   Trả về: -1 (a < b), 0 (a == b), 1 (a > b).
+ */
+int cmpFrac(Fraction a, Fraction b) {
+    __int128 lhs = (__int128)a.num * b.den;
+    __int128 rhs = (__int128)b.num * a.den;
+    if (lhs < rhs) return -1;
+    if (lhs > rhs) return  1;
+    return 0;
+}
+
+/* [B4] Tổng tất cả phân số trong vector (bỏ qua invalid). */
+Fraction sumAllFrac(const vector<Fraction>& fracs) {
+    Fraction total = {0, 1};
+    for (const auto& f : fracs) total = addFrac(total, f);
+    return total;
+}
+
+/* [B5] Kiểm tra f ∈ [lo, hi]. */
+bool inRange(Fraction f, Fraction lo, Fraction hi) {
+    return cmpFrac(lo, f) <= 0 && cmpFrac(f, hi) <= 0;
+}
+
+/* [B6] Nhân 2 phân số: a/b × c/d = (a*c) / (b*d). */
+Fraction mulFrac(Fraction a, Fraction b) {
+    Fraction r = { a.num * b.num, a.den * b.den };
+    normalize(r);
+    return r;
+}
+
+/* [B6] Chia 2 phân số: a/b ÷ c/d = (a*d) / (b*c).
+ *   Trả về {0, 0} nếu chia cho 0 (c/d = 0/something hoặc c=0).
+ */
+Fraction divFrac(Fraction a, Fraction b) {
+    if (b.num == 0) return {0, 0}; // chia cho 0
+    Fraction r = { a.num * b.den, a.den * b.num };
+    normalize(r);
+    return r;
+}
+
+// ============================================================
+// Hàm tiện ích: đọc file fractions.csv (num,den mỗi dòng)
+// ============================================================
+/*
+ * Mỗi dòng: "num,den"
+ * Trả về danh sách Fraction; đánh dấu phân số invalid khi den=0.
+ * invalidCount tăng mỗi khi den = 0.
+ */
+bool readFractionsCSV(const string& path,
+                      vector<Fraction>& valid,
+                      vector<Fraction>& all,
+                      int& invalidCount) {
+    ifstream fin(path);
+    if (!fin) { cerr << "Lỗi mở file '" << path << "'\n"; return false; }
+
+    invalidCount = 0;
+    string line;
+    while (getline(fin, line)) {
+        if (line.empty()) continue;
+        stringstream ss(line);
+        long long n, d; char comma;
+        if (!(ss >> n >> comma >> d)) continue;
+
+        Fraction f = {n, d};
+        all.push_back(f);
+
+        if (!normalize(f)) { ++invalidCount; }
+        else                { valid.push_back(f); }
+    }
+    return true;
+}
+
+// Ghi phân số dạng "num/den"
+void printFrac(ostream& os, Fraction f) {
+    os << f.num << "/" << f.den;
+}
+
+// ============================================================
+// BÀI 10 — Dãy Farey bậc N
+// ============================================================
+/*
+ * Định nghĩa dãy Farey F_N:
+ *   Tập hợp tất cả phân số p/q với:
+ *     0 ≤ p ≤ q ≤ N, gcd(p, q) = 1, đã sắp xếp tăng dần.
+ *   Phân số 0/1 và 1/1 luôn có mặt (nếu N ≥ 1).
+ *
+ * Thuật toán (theo gợi ý trong đề):
+ *   1. Sinh tất cả cặp (p, q) với 1 ≤ q ≤ N, 0 ≤ p ≤ q, gcd(p,q)=1.
+ *   2. Normalize mỗi phân số.
+ *   3. Loại trùng lặp (không nên có nhưng phòng ngừa).
+ *   4. Sắp xếp tăng dần bằng cmpFrac.
+ *   5. Ghi ra file.
+ *
+ * Case biên:
+ *   - N = 0 → dãy rỗng (không có p/q với 0 ≤ p ≤ q ≤ 0, q ≥ 1).
+ *             → thực tế chỉ có 0/1 khi q=1, nhưng q ≤ 0 nên không có gì.
+ *             → Bài nói N ≤ 50.
+ *   - N = 1 → F_1 = {0/1, 1/1}.
+ *   - N = 2 → F_2 = {0/1, 1/2, 1/1}.
+ *   - N = 3 → F_3 = {0/1, 1/3, 1/2, 2/3, 1/1}.
+ */
+void bai10(int N, const string& outPath) {
+    if (N <= 0) {
+        ofstream fout(outPath);
+        fout << "num,den\ncount=0\n";
+        cout << "[B10] N<=0, day Farey rong.\n";
+        return;
+    }
+ 
+    vector<Fraction> farey;
+ 
+    // Sinh tất cả phân số p/q trong [0, 1] với 1 ≤ q ≤ N, gcd(p,q)=1
+    for (int q = 1; q <= N; ++q) {
+        for (int p = 0; p <= q; ++p) {
+            // Điều kiện: gcd(p, q) = 1 (phân số tối giản)
+            // Đặc biệt: 0/q → gcd(0, q) = q, nhưng 0/1 là đại diện duy nhất
+            // Xử lý: p=0 thì gcd = q, chỉ lấy khi q=1 (tức 0/1)
+            long long g = gcd((long long)p, (long long)q);
+            if (g != 1) continue; // không phải phân số tối giản
+ 
+            Fraction f = {p, q};
+            // normalize không thay đổi gì ở đây (p ≥ 0, q > 0, gcd=1)
+            normalize(f);
+            farey.push_back(f);
+        }
+    }
+ 
+    // Sắp xếp tăng dần theo giá trị phân số
+    sort(farey.begin(), farey.end(), [](const Fraction& a, const Fraction& b) {
+        return cmpFrac(a, b) < 0;
+    });
+ 
+    // Loại trùng lặp (sau normalize + sort, trùng nghĩa là giá trị = nhau)
+    farey.erase(unique(farey.begin(), farey.end(), [](const Fraction& a, const Fraction& b) {
+        return cmpFrac(a, b) == 0;
+    }), farey.end());
+ 
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B10] Lỗi ghi " << outPath << "\n"; return; }
+ 
+    fout << "num,den\n";
+    for (const auto& f : farey) {
+        fout << f.num << "," << f.den << "\n";
+    }
+    fout << "count=" << farey.size() << "\n";
+ 
+    cout << "[B10] Day Farey F_" << N << " co " << farey.size() << " phan so.\n";
+    // In vài phần tử đầu để xác nhận
+    cout << "       Vi du: ";
+    int show = min((int)farey.size(), 6);
+    for (int i = 0; i < show; ++i) {
+        printFrac(cout, farey[i]);
+        if (i < show-1) cout << ", ";
+    }
+    if ((int)farey.size() > show) cout << " ...";
+    cout << "\n";
+}
+
+
+void createSampleFiles() {
+    // fractions.csv: các phân số đa dạng, kể cả invalid
+    {
+        ofstream f("fractions.csv");
+        f << "1,2\n"      // 1/2 hợp lệ
+          << "3,4\n"      // 3/4
+          << "-1,3\n"     // -1/3
+          << "0,5\n"      // 0/1 sau normalize
+          << "2,0\n"      // INVALID: mẫu = 0
+          << "6,3\n"      // 2/1 sau normalize → số nguyên
+          << "7,3\n"      // 7/3
+          << "-4,2\n"     // -2/1 → số nguyên âm
+          << "5,10\n"     // 1/2 → trùng với dòng 1
+          << "100,1\n";   // số nguyên lớn
+    }
+    cout << "[SETUP] Da tao fractions.csv\n\n";
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 10: Dãy Farey ---
+    cout << "\n--- Bai 10: Day Farey bac N ---\n";
+ 
+    // Case biên: N = 1
+    cout << "  F_1: "; bai10(1, "farey_1.csv");
+    // Kỳ vọng: 0/1, 1/1 — 2 phần tử
+ 
+    // F_3 để xác nhận thứ tự
+    cout << "  F_3: "; bai10(3, "farey_3.csv");
+    // Kỳ vọng: 0/1, 1/3, 1/2, 2/3, 1/1 — 5 phần tử
+ 
+    // F_5 theo đề
+    cout << "  F_5: "; bai10(5, "farey_5.csv");
+ 
+    // Case biên: N = 0
+    cout << "  F_0 (bien): "; bai10(0, "farey_0.csv");
+ 
+    return 0;
+}
