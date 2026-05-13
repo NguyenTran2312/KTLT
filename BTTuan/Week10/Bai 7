@@ -1,0 +1,849 @@
+/*
+ * tuan10_bai7den10.cpp
+ * TUẦN 10 — Tổng hợp M0: Mini-project + Module hoá  (Bài 7 → 10)
+ * ================================================================
+ * Hàm TÁI SỬ DỤNG từ Bài 1–6 (khai báo ở PHẦN 1):
+ *   [B1] parseCSV()           — đọc id + nhiều cột số (có missing)
+ *   [B2] computeColStats()    — count/missing/min/max/mean/std mỗi cột
+ *   [B4] buildPrefix()        — prefix sum long long
+ *   [B4] sumRange()           — truy vấn tổng đoạn O(1)
+ *   [B5] normalizeLine()      — lowercase + non-alnum → space
+ *   [B5] tokenize()           — tách token
+ *   [B5] buildFreqMap()       — đếm tần suất
+ *   [B5] topK()               — top-K theo count
+ *
+ * Bài MỚI (7–10):
+ *   B7 : Sliding window multi-stat — rolling mean + max + min trong 1 lần duyệt
+ *   B8 : Sort + search tổng hợp   — sắp xếp theo score, tra cứu rank theo id
+ *   B9 : Phát hiện outlier IQR     — Q1, Q3, IQR, đánh dấu outlier
+ *   B10: Mini-project tự do        — Hướng A: cleaning → Z-score → ASCII histogram
+ *
+ * Biên dịch: g++ -std=c++11 -Wall -o tuan10 tuan10_bai7den10.cpp
+ */
+
+#include <bits/stdc++.h>
+using namespace std;
+
+// ============================================================
+// PHẦN 1 — HÀM TÁI SỬ DỤNG TỪ BÀI 1–6
+// ============================================================
+
+/* ── Tiện ích chuỗi ── */
+
+string trim(const string& s) {
+    int l = 0, r = (int)s.size() - 1;
+    while (l <= r && isspace((unsigned char)s[l])) ++l;
+    while (r >= l && isspace((unsigned char)s[r])) --r;
+    return (l > r) ? "" : s.substr(l, r - l + 1);
+}
+
+/* [B1/T1] Kiểm tra token missing (NA, NaN, n/a, rỗng). */
+bool isMissing(const string& raw) {
+    string t = trim(raw);
+    if (t.empty()) return true;
+    string lo = t;
+    for (char& c : lo) c = tolower(c);
+    return (lo == "na" || lo == "nan" || lo == "n/a");
+}
+
+/* [B1/T1] Tách 1 dòng CSV thành các cell (delimiter = ','). */
+vector<string> splitCSV(const string& line) {
+    vector<string> cells;
+    stringstream ss(line);
+    string cell;
+    while (getline(ss, cell, ',')) cells.push_back(trim(cell));
+    return cells;
+}
+
+/* ── Struct thống kê cột ── */
+struct ColStats {
+    string  colName;
+    int     count   = 0;   // số giá trị hợp lệ
+    int     missing = 0;
+    double  minVal  = 0, maxVal = 0, mean = 0, std = 0;
+    bool    empty   = true; // true nếu count == 0
+};
+
+/*
+ * [B2/T10] Tính thống kê cho 1 cột số thực (vector<double> đã lọc missing).
+ *   mean = Σxi / n
+ *   std  = sqrt(Σ(xi - mean)² / n)  — variance quần thể
+ * Dùng long double để tích lũy tránh mất độ chính xác.
+ */
+ColStats computeColStats(const string& name,
+                         const vector<double>& vals,
+                         int missingCount) {
+    ColStats s;
+    s.colName = name;
+    s.missing = missingCount;
+    s.count   = (int)vals.size();
+    if (s.count == 0) { s.empty = true; return s; }
+    s.empty   = false;
+    s.minVal  = *min_element(vals.begin(), vals.end());
+    s.maxVal  = *max_element(vals.begin(), vals.end());
+
+    long double sum = 0;
+    for (double v : vals) sum += v;
+    s.mean = (double)(sum / s.count);
+
+    long double varAcc = 0;
+    for (double v : vals) {
+        long double diff = v - s.mean;
+        varAcc += diff * diff;
+    }
+    s.std = (double)sqrt((double)(varAcc / s.count));
+    return s;
+}
+
+/*
+ * [B1/T10] Đọc data.csv nhiều cột: dòng đầu là header (id + N cột số).
+ * Trả về:
+ *   headers   — tên cột (bỏ cột id đầu tiên)
+ *   ids       — danh sách id từng hàng
+ *   colData   — colData[j][i] = giá trị hợp lệ hàng i cột j (NaN nếu missing)
+ *   colMiss   — colMiss[j] = số missing cột j
+ * Trả về false nếu không mở được file.
+ */
+struct MultiColData {
+    vector<string>              headers;   // tên cột số (không có "id")
+    vector<string>              ids;
+    vector<vector<double>>      rawVals;   // rawVals[row][col], NaN nếu missing
+    vector<vector<double>>      validVals; // validVals[col] = các giá trị không missing
+    vector<int>                 colMiss;
+};
+
+bool parseMultiColCSV(const string& path, MultiColData& D) {
+    ifstream fin(path);
+    if (!fin) { cerr << "[parseMultiColCSV] Lỗi mở '" << path << "'\n"; return false; }
+
+    string line;
+    // Đọc header
+    if (!getline(fin, line)) { cerr << "File rỗng.\n"; return false; }
+    auto hdr = splitCSV(line);
+    if (hdr.empty()) return false;
+    // Bỏ cột đầu tiên (id)
+    for (int j = 1; j < (int)hdr.size(); ++j) D.headers.push_back(hdr[j]);
+    int nCols = (int)D.headers.size();
+
+    D.validVals.resize(nCols);
+    D.colMiss.assign(nCols, 0);
+
+    while (getline(fin, line)) {
+        if (trim(line).empty()) continue;
+        auto cells = splitCSV(line);
+
+        string id = cells.empty() ? "UNKNOWN" : cells[0];
+        D.ids.push_back(id);
+
+        vector<double> row(nCols, NAN);
+        for (int j = 0; j < nCols; ++j) {
+            int ci = j + 1; // +1 vì bỏ qua cột id
+            if (ci >= (int)cells.size() || isMissing(cells[ci])) {
+                D.colMiss[j]++;
+            } else {
+                try {
+                    double v = stod(cells[ci]);
+                    row[j] = v;
+                    D.validVals[j].push_back(v);
+                } catch (...) {
+                    D.colMiss[j]++;
+                }
+            }
+        }
+        D.rawVals.push_back(row);
+    }
+    return true;
+}
+
+/* [B4/T3] Prefix sum long long. */
+vector<long long> buildPrefix(const vector<long long>& a) {
+    int n = (int)a.size();
+    vector<long long> pre(n, 0);
+    if (n == 0) return pre;
+    pre[0] = a[0];
+    for (int i = 1; i < n; ++i) pre[i] = pre[i-1] + a[i];
+    return pre;
+}
+
+bool sumRange(const vector<long long>& pre, int l, int r, long long& ans) {
+    int n = (int)pre.size();
+    if (l < 0 || r >= n || l > r) return false;
+    ans = pre[r] - (l > 0 ? pre[l-1] : 0);
+    return true;
+}
+
+/* [B5/T9] Chuỗi: normalize, tokenize, tần suất, top-K. */
+string normalizeLine(const string& s) {
+    string result; bool prevSpace = true;
+    for (unsigned char ch : s) {
+        if (isalnum(ch)) { result += tolower(ch); prevSpace = false; }
+        else if (!prevSpace) { result += ' '; prevSpace = true; }
+    }
+    if (!result.empty() && result.back() == ' ') result.pop_back();
+    return result;
+}
+
+vector<string> tokenize(const string& norm) {
+    vector<string> tokens;
+    stringstream ss(norm); string tok;
+    while (ss >> tok) tokens.push_back(tok);
+    return tokens;
+}
+
+unordered_map<string,int> buildFreqMap(const vector<string>& tokens) {
+    unordered_map<string,int> freq;
+    for (const auto& t : tokens) freq[t]++;
+    return freq;
+}
+
+vector<pair<string,int>> topK(const unordered_map<string,int>& freq, int k) {
+    vector<pair<string,int>> vec(freq.begin(), freq.end());
+    sort(vec.begin(), vec.end(), [](const pair<string,int>& a,
+                                    const pair<string,int>& b){
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
+    });
+    if (k >= 0 && k < (int)vec.size()) vec.resize(k);
+    return vec;
+}
+
+// ============================================================
+// BÀI 7 — Sliding window multi-stat
+// ============================================================
+/*
+ * Tính ĐỒNG THỜI 3 chỉ số trên mỗi cửa sổ k phần tử:
+ *   - rolling mean  : trung bình cộng
+ *   - rolling max   : giá trị lớn nhất
+ *   - rolling min   : giá trị nhỏ nhất
+ *
+ * Thuật toán trong 1 lần duyệt (O(n)):
+ *   ► MEAN  : dùng sliding sum — cộng phần tử mới, trừ phần tử cũ ra khỏi cửa sổ.
+ *   ► MAX   : dùng deque giảm dần (monotonic deque) — mỗi bước:
+ *               1. Loại phần tử đầu deque nếu đã ra ngoài cửa sổ (idx < i-k+1).
+ *               2. Loại các phần tử cuối deque nhỏ hơn a[i] (chúng không bao giờ là max).
+ *               3. Push i vào deque. Đầu deque là chỉ số của max.
+ *   ► MIN   : deque tăng dần (tương tự nhưng chiều ngược lại).
+ *
+ * Output: multi_rolling.csv với header "i,mean_i,max_i,min_i".
+ *
+ * Case biên:
+ *   - k > n   → không có cửa sổ nào, ghi chỉ header.
+ *   - k = 1   → mean[i] = max[i] = min[i] = a[i].
+ *   - k = n   → 1 cửa sổ duy nhất.
+ *   - n = 0   → ghi chỉ header.
+ */
+struct RollingStats {
+    double mean, maxV, minV;
+};
+
+vector<RollingStats> computeMultiRolling(const vector<double>& a, int k) {
+    int n = (int)a.size();
+    vector<RollingStats> result;
+    if (n == 0 || k <= 0 || k > n) return result;
+
+    // --- Khởi tạo cửa sổ đầu tiên [0 .. k-1] ---
+    double windowSum = 0;
+    deque<int> dqMax, dqMin; // lưu chỉ số
+
+    for (int i = 0; i < k; ++i) {
+        windowSum += a[i];
+
+        // Cập nhật deque max: bỏ phần tử nhỏ hơn a[i] ở cuối
+        while (!dqMax.empty() && a[dqMax.back()] <= a[i]) dqMax.pop_back();
+        dqMax.push_back(i);
+
+        // Cập nhật deque min: bỏ phần tử lớn hơn a[i] ở cuối
+        while (!dqMin.empty() && a[dqMin.back()] >= a[i]) dqMin.pop_back();
+        dqMin.push_back(i);
+    }
+    result.push_back({ windowSum / k, a[dqMax.front()], a[dqMin.front()] });
+
+    // --- Trượt cửa sổ từ i = k đến n-1 ---
+    for (int i = k; i < n; ++i) {
+        // Loại phần tử cũ ra khỏi sum (phần tử [i-k])
+        windowSum -= a[i - k];
+        windowSum += a[i];
+
+        // Max deque: loại chỉ số đã ra khỏi cửa sổ
+        while (!dqMax.empty() && dqMax.front() < i - k + 1) dqMax.pop_front();
+        while (!dqMax.empty() && a[dqMax.back()] <= a[i])   dqMax.pop_back();
+        dqMax.push_back(i);
+
+        // Min deque: tương tự
+        while (!dqMin.empty() && dqMin.front() < i - k + 1) dqMin.pop_front();
+        while (!dqMin.empty() && a[dqMin.back()] >= a[i])   dqMin.pop_back();
+        dqMin.push_back(i);
+
+        result.push_back({ windowSum / k, a[dqMax.front()], a[dqMin.front()] });
+    }
+    return result;
+}
+
+void bai7(const string& arrayPath, const string& outPath) {
+    // Đọc mảng: dòng đầu là k, dòng thứ 2 là n, rồi n số thực
+    ifstream fin(arrayPath);
+    if (!fin) { cerr << "[B7] Lỗi mở " << arrayPath << "\n"; return; }
+
+    int k, n; fin >> k >> n;
+    vector<double> a(n);
+    for (int i = 0; i < n; ++i) fin >> a[i];
+
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B7] Lỗi ghi " << outPath << "\n"; return; }
+
+    fout << fixed << setprecision(6);
+    fout << "i,mean_i,max_i,min_i\n";
+
+    // Case biên: k > n hoặc n = 0
+    if (n == 0 || k > n || k <= 0) {
+        cout << "[B7] k=" << k << " n=" << n << " -> Khong co cua so nao.\n";
+        return;
+    }
+
+    auto stats = computeMultiRolling(a, k);
+    for (int i = 0; i < (int)stats.size(); ++i) {
+        fout << i << ","
+             << stats[i].mean << ","
+             << stats[i].maxV << ","
+             << stats[i].minV << "\n";
+    }
+
+    cout << "[B7] k=" << k << " n=" << n
+         << " -> " << stats.size() << " cua so, ghi " << outPath << "\n";
+}
+
+// ============================================================
+// BÀI 8 — Sort + search tổng hợp
+// ============================================================
+/*
+ * Quy trình:
+ *   1. Đọc records.csv (id, score) — dùng splitCSV() từ B1.
+ *   2. Stable sort theo score GIẢM dần (stable giữ nguyên thứ tự id nếu score bằng).
+ *   3. Với mỗi id trong queries.txt:
+ *        - Tìm trong map<id → record_index_in_sorted> → O(1).
+ *        - In rank (1-based), id, score.
+ *        - Nếu không tìm thấy → NOT_FOUND.
+ *
+ * Tại sao dùng stable_sort?
+ *   Đề bài yêu cầu "stable sort theo score giảm" để thứ tự các id
+ *   bằng score được giữ như thứ tự xuất hiện ban đầu trong file.
+ *
+ * Case biên:
+ *   - File records rỗng → mọi query đều NOT_FOUND.
+ *   - 2 id cùng score → rank nhỏ hơn thuộc id xuất hiện trước.
+ *   - Query id không có trong records → NOT_FOUND.
+ */
+struct Record {
+    string id;
+    double score;
+};
+
+void bai8(const string& recPath, const string& qryPath, const string& outPath) {
+    // Đọc records
+    ifstream frec(recPath);
+    if (!frec) { cerr << "[B8] Lỗi mở " << recPath << "\n"; return; }
+
+    vector<Record> records;
+    string line;
+    getline(frec, line); // bỏ header "id,score"
+    while (getline(frec, line)) {
+        if (trim(line).empty()) continue;
+        auto cells = splitCSV(line);
+        if (cells.size() < 2) continue;
+        try {
+            Record r;
+            r.id    = cells[0];
+            r.score = stod(cells[1]);
+            records.push_back(r);
+        } catch (...) {}
+    }
+
+    // Stable sort theo score giảm dần
+    stable_sort(records.begin(), records.end(),
+                [](const Record& a, const Record& b){ return a.score > b.score; });
+
+    // Xây map id → rank (1-based)
+    unordered_map<string, int> rankMap;
+    for (int i = 0; i < (int)records.size(); ++i)
+        rankMap[records[i].id] = i + 1;
+
+    // Đọc queries
+    ifstream fqry(qryPath);
+    if (!fqry) { cerr << "[B8] Lỗi mở " << qryPath << "\n"; return; }
+
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B8] Lỗi ghi " << outPath << "\n"; return; }
+    fout << fixed << setprecision(2);
+    fout << "rank,id,score\n";
+
+    int found = 0, notFound = 0;
+    while (getline(fqry, line)) {
+        string qid = trim(line);
+        if (qid.empty()) continue;
+        auto it = rankMap.find(qid);
+        if (it == rankMap.end()) {
+            fout << "NOT_FOUND," << qid << ",-\n";
+            ++notFound;
+        } else {
+            int rk = it->second;
+            fout << rk << "," << records[rk-1].id << "," << records[rk-1].score << "\n";
+            ++found;
+        }
+    }
+
+    cout << "[B8] Tim thay=" << found << "  NOT_FOUND=" << notFound
+         << ", ghi " << outPath << "\n";
+}
+
+// ============================================================
+// BÀI 9 — Phát hiện outlier IQR
+// ============================================================
+/*
+ * Phương pháp IQR (Interquartile Range):
+ *   Sắp xếp mảng → tính Q1, Q3, IQR = Q3 - Q1.
+ *   Outlier: x < Q1 - 1.5·IQR  HOẶC  x > Q3 + 1.5·IQR.
+ *
+ * Cách tính Q1, Q3 (phương pháp "inclusive" phổ biến nhất):
+ *   - Sắp xếp mảng: sorted[0..n-1].
+ *   - Q2 (median): sorted[n/2] nếu n lẻ; (sorted[n/2-1] + sorted[n/2]) / 2 nếu n chẵn.
+ *   - Q1: median của nửa dưới sorted[0 .. n/2 - 1].
+ *   - Q3: median của nửa trên:
+ *       + n lẻ  → sorted[n/2+1 .. n-1]
+ *       + n chẵn → sorted[n/2   .. n-1]
+ *
+ * Output: outliers.csv (index, value) + summary.
+ *
+ * Case biên:
+ *   - n < 4  → không đủ dữ liệu để tính IQR tin cậy; vẫn tính nhưng cảnh báo.
+ *   - n = 0  → EMPTY.
+ *   - Tất cả giá trị bằng nhau → IQR = 0 → không có outlier.
+ *   - Outlier nằm ở cả đầu lẫn cuối mảng → đều được phát hiện.
+ */
+
+/* Tính median của một mảng đã sắp xếp (đoạn [lo, hi]). */
+double medianSorted(const vector<double>& sorted, int lo, int hi) {
+    int len = hi - lo + 1;
+    if (len <= 0) return 0.0;
+    if (len % 2 == 1) return sorted[lo + len / 2];
+    return (sorted[lo + len/2 - 1] + sorted[lo + len/2]) / 2.0;
+}
+
+void bai9(const string& valPath, const string& outPath) {
+    // Đọc giá trị (1 cột số thực, không missing — theo đề bài)
+    ifstream fin(valPath);
+    if (!fin) { cerr << "[B9] Lỗi mở " << valPath << "\n"; return; }
+
+    vector<double> values;
+    string line;
+    getline(fin, line); // bỏ header nếu có
+    // Thử parse dòng header — nếu parse được thì nó là data
+    {
+        try { double v = stod(trim(line)); values.push_back(v); }
+        catch (...) {} // thực sự là header, bỏ qua
+    }
+    while (getline(fin, line)) {
+        if (trim(line).empty()) continue;
+        try { values.push_back(stod(trim(line))); } catch (...) {}
+    }
+
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B9] Lỗi ghi " << outPath << "\n"; return; }
+    fout << fixed << setprecision(6);
+
+    int n = (int)values.size();
+    if (n == 0) {
+        fout << "EMPTY\n";
+        cout << "[B9] Mang rong.\n";
+        return;
+    }
+
+    // Giữ lại index gốc để in ra outliers.csv
+    // sorted_idx[i] = chỉ số gốc của phần tử thứ i khi sắp xếp
+    vector<int> sortedIdx(n);
+    iota(sortedIdx.begin(), sortedIdx.end(), 0);
+    sort(sortedIdx.begin(), sortedIdx.end(),
+         [&](int a, int b){ return values[a] < values[b]; });
+
+    vector<double> sorted(n);
+    for (int i = 0; i < n; ++i) sorted[i] = values[sortedIdx[i]];
+
+    // Tính Q1, Q3
+    int mid = n / 2;
+    double Q1 = medianSorted(sorted, 0, mid - 1);
+    double Q3 = (n % 2 == 1)
+                  ? medianSorted(sorted, mid + 1, n - 1)  // n lẻ: bỏ phần tử giữa
+                  : medianSorted(sorted, mid,     n - 1); // n chẵn: nửa trên
+    double IQR      = Q3 - Q1;
+    double lowerBnd = Q1 - 1.5 * IQR;
+    double upperBnd = Q3 + 1.5 * IQR;
+
+    // Phát hiện outlier theo thứ tự index GỐC (không theo thứ tự sắp xếp)
+    fout << "index,value\n";
+    int nOutliers = 0;
+    for (int i = 0; i < n; ++i) {
+        if (values[i] < lowerBnd || values[i] > upperBnd) {
+            fout << i << "," << values[i] << "\n";
+            ++nOutliers;
+        }
+    }
+
+    // Summary
+    fout << "---\n";
+    fout << "Q1="       << Q1       << "\n";
+    fout << "Q3="       << Q3       << "\n";
+    fout << "IQR="      << IQR      << "\n";
+    fout << "lower_bound=" << lowerBnd << "\n";
+    fout << "upper_bound=" << upperBnd << "\n";
+    fout << "n_outliers=" << nOutliers << "\n";
+
+    if (n < 4)
+        fout << "WARNING: n=" << n << " < 4, IQR co the khong chinh xac.\n";
+
+    cout << "[B9] n=" << n << "  Q1=" << Q1 << "  Q3=" << Q3
+         << "  IQR=" << IQR << "  outliers=" << nOutliers << "\n";
+}
+
+// ============================================================
+// BÀI 10 — Mini-project: Hướng A — Cleaning → Z-score → ASCII Histogram
+// ============================================================
+/*
+ * Pipeline M0 đầy đủ, chia thành 4 hàm module rõ ràng:
+ *
+ *   [Module 1] loadData()         — đọc CSV nhiều cột, tách valid/missing
+ *   [Module 2] computeStats()     — mean + std cho từng cột
+ *   [Module 3] imputeAndZScore()  — impute missing = mean, tính Z-score
+ *   [Module 4] writeReport()      — ghi report.csv + summary.txt + histogram ASCII
+ *
+ * ASCII Histogram:
+ *   Chia dải Z-score của mỗi cột thành 10 bins đều nhau.
+ *   Mỗi bin hiển thị như: "[lo, hi): ####" (mỗi # = 1 phần tử).
+ *   Nếu tất cả Z-score = 0 (std = 0) → in "ALL_ZERO".
+ *
+ * Case biên:
+ *   - Tất cả giá trị 1 cột missing → mean=0, std=0, Z-score=0 sau impute.
+ *   - std = 0 (tất cả giá trị bằng nhau) → Z-score = 0.
+ *   - File rỗng (không có hàng data) → báo lỗi.
+ *   - Chỉ 1 hàng → std = 0 (variance quần thể n=1 chia n = 0? → không, std = 0).
+ */
+
+/* [Module 1] Đọc dữ liệu từ data_b10.csv. */
+struct DataTable {
+    vector<string>         colNames;  // tên các cột số (bỏ cột id)
+    vector<string>         ids;
+    // rawVals[row][col]: giá trị hoặc NaN nếu missing
+    vector<vector<double>> rawVals;
+    int nRows = 0, nCols = 0;
+};
+
+bool loadData(const string& path, DataTable& D) {
+    ifstream fin(path);
+    if (!fin) { cerr << "[B10] Lỗi mở '" << path << "'\n"; return false; }
+
+    string line;
+    if (!getline(fin, line)) { cerr << "[B10] File rỗng.\n"; return false; }
+
+    auto hdr = splitCSV(line);
+    if (hdr.size() < 2) { cerr << "[B10] Cần ít nhất 2 cột (id + 1 cột số).\n"; return false; }
+    for (int j = 1; j < (int)hdr.size(); ++j) D.colNames.push_back(hdr[j]);
+    D.nCols = (int)D.colNames.size();
+
+    while (getline(fin, line)) {
+        if (trim(line).empty()) continue;
+        auto cells = splitCSV(line);
+        D.ids.push_back(cells.empty() ? "UNKNOWN" : cells[0]);
+
+        vector<double> row(D.nCols, NAN);
+        for (int j = 0; j < D.nCols; ++j) {
+            int ci = j + 1;
+            if (ci < (int)cells.size() && !isMissing(cells[ci])) {
+                try { row[j] = stod(cells[ci]); } catch (...) {}
+            }
+        }
+        D.rawVals.push_back(row);
+    }
+    D.nRows = (int)D.ids.size();
+    return D.nRows > 0;
+}
+
+/* [Module 2] Tính mean và std cho từng cột (bỏ qua NaN). */
+struct StatsVec {
+    vector<double> means, stds;
+    vector<int>    counts, missings;
+};
+
+StatsVec computeStats(const DataTable& D) {
+    StatsVec S;
+    S.means.resize(D.nCols, 0.0);
+    S.stds.resize(D.nCols, 0.0);
+    S.counts.resize(D.nCols, 0);
+    S.missings.resize(D.nCols, 0);
+
+    for (int j = 0; j < D.nCols; ++j) {
+        long double sum = 0;
+        int cnt = 0;
+        for (int i = 0; i < D.nRows; ++i) {
+            if (!isnan(D.rawVals[i][j])) { sum += D.rawVals[i][j]; ++cnt; }
+            else                          ++S.missings[j];
+        }
+        S.counts[j] = cnt;
+        if (cnt == 0) { S.means[j] = 0.0; S.stds[j] = 0.0; continue; }
+
+        S.means[j] = (double)(sum / cnt);
+
+        long double varAcc = 0;
+        for (int i = 0; i < D.nRows; ++i) {
+            if (!isnan(D.rawVals[i][j])) {
+                long double d = D.rawVals[i][j] - S.means[j];
+                varAcc += d * d;
+            }
+        }
+        S.stds[j] = (cnt > 1) ? (double)sqrt((double)(varAcc / cnt)) : 0.0;
+    }
+    return S;
+}
+
+/* [Module 3] Impute missing = mean của cột, tính Z-score.
+ * imputed[row][col]  = giá trị đã impute (gốc hoặc mean nếu missing).
+ * zscores[row][col]  = (imputed - mean) / std; nếu std=0 → z=0.
+ */
+struct ImputedTable {
+    vector<vector<double>> imputed;
+    vector<vector<double>> zscores;
+};
+
+ImputedTable imputeAndZScore(const DataTable& D, const StatsVec& S) {
+    ImputedTable T;
+    T.imputed.assign(D.nRows, vector<double>(D.nCols, 0.0));
+    T.zscores.assign(D.nRows, vector<double>(D.nCols, 0.0));
+
+    for (int i = 0; i < D.nRows; ++i) {
+        for (int j = 0; j < D.nCols; ++j) {
+            double val = isnan(D.rawVals[i][j]) ? S.means[j] : D.rawVals[i][j];
+            T.imputed[i][j] = val;
+            T.zscores[i][j] = (S.stds[j] > 1e-12)
+                                 ? (val - S.means[j]) / S.stds[j]
+                                 : 0.0;
+        }
+    }
+    return T;
+}
+
+/* [Module 4a] Ghi report.csv: id, col1_imputed, col1_z, col2_imputed, col2_z, ... */
+void writeReport(const string& path, const DataTable& D,
+                 const ImputedTable& T) {
+    ofstream fout(path);
+    if (!fout) { cerr << "[B10] Lỗi ghi " << path << "\n"; return; }
+    fout << fixed << setprecision(6);
+
+    // Header
+    fout << "id";
+    for (const auto& col : D.colNames)
+        fout << "," << col << "_imputed," << col << "_zscore";
+    fout << "\n";
+
+    // Data
+    for (int i = 0; i < D.nRows; ++i) {
+        fout << D.ids[i];
+        for (int j = 0; j < D.nCols; ++j)
+            fout << "," << T.imputed[i][j] << "," << T.zscores[i][j];
+        fout << "\n";
+    }
+}
+
+/* [Module 4b] Ghi summary.txt: thống kê từng cột + ASCII histogram Z-score. */
+void writeSummary(const string& path, const DataTable& D,
+                  const StatsVec& S, const ImputedTable& T) {
+    ofstream fout(path);
+    if (!fout) { cerr << "[B10] Lỗi ghi " << path << "\n"; return; }
+    fout << fixed << setprecision(6);
+
+    for (int j = 0; j < D.nCols; ++j) {
+        fout << "=== Column: " << D.colNames[j] << " ===\n";
+        fout << "count="   << S.counts[j]  << "\n";
+        fout << "missing=" << S.missings[j] << "\n";
+        fout << "mean="    << S.means[j]   << "\n";
+        fout << "std="     << S.stds[j]    << "\n";
+
+        // --- ASCII Histogram của Z-score ---
+        // Thu thập tất cả z-score của cột j
+        vector<double> zCol(D.nRows);
+        for (int i = 0; i < D.nRows; ++i) zCol[i] = T.zscores[i][j];
+
+        double zMin = *min_element(zCol.begin(), zCol.end());
+        double zMax = *max_element(zCol.begin(), zCol.end());
+
+        fout << "Z-score histogram:\n";
+
+        // Nếu tất cả z = 0 → in thông báo đặc biệt
+        if (fabs(zMax - zMin) < 1e-12) {
+            fout << "  ALL_ZERO (std=0 hoac tat ca gia tri bang nhau)\n";
+        } else {
+            const int BINS = 10;
+            double binW = (zMax - zMin) / BINS;
+            vector<int> hist(BINS, 0);
+
+            for (double z : zCol) {
+                int bin = (int)((z - zMin) / binW);
+                if (bin == BINS) bin = BINS - 1; // z = zMax vào bin cuối
+                hist[bin]++;
+            }
+
+            for (int b = 0; b < BINS; ++b) {
+                double lo = zMin + b * binW;
+                double hi = lo + binW;
+                // In khoảng bin [lo, hi)
+                fout << setw(8) << setprecision(2) << lo
+                     << " - " << setw(7) << hi << ": ";
+                // Vẽ # theo số lượng phần tử trong bin
+                for (int cnt = 0; cnt < hist[b]; ++cnt) fout << '#';
+                fout << "  (" << hist[b] << ")\n";
+            }
+        }
+        fout << "\n";
+    }
+}
+
+void bai10(const string& dataPath) {
+    cout << "\n[B10] === Mini-project: Cleaning + Z-score + ASCII Histogram ===\n";
+
+    // [Module 1] Load
+    DataTable D;
+    if (!loadData(dataPath, D)) return;
+    cout << "  Load: " << D.nRows << " hang, " << D.nCols << " cot so.\n";
+
+    // [Module 2] Stats
+    StatsVec S = computeStats(D);
+    for (int j = 0; j < D.nCols; ++j) {
+        cout << "  Col '" << D.colNames[j] << "': count=" << S.counts[j]
+             << " miss=" << S.missings[j]
+             << " mean=" << fixed << setprecision(4) << S.means[j]
+             << " std="  << S.stds[j] << "\n";
+    }
+
+    // [Module 3] Impute + Z-score
+    ImputedTable T = imputeAndZScore(D, S);
+
+    // [Module 4] Write outputs
+    writeReport("b10_report.csv", D, T);
+    writeSummary("b10_summary.txt", D, S, T);
+
+    cout << "  Da ghi: b10_report.csv, b10_summary.txt\n";
+}
+
+// ============================================================
+// MAIN — tạo dữ liệu mẫu và chạy demo tất cả bài 7–10
+// ============================================================
+void createSampleFiles() {
+    // array_b7.txt — k (window size), n, rồi n số thực
+    {
+        ofstream f("array_b7.txt");
+        f << "3\n"               // k = 3
+          << "8\n"               // n = 8
+          << "2 4 7 3 9 1 6 5\n";
+    }
+    // records.csv — cho bài 8
+    {
+        ofstream f("records.csv");
+        f << "id,score\n"
+          << "Alice,88.5\n"
+          << "Bob,92.0\n"
+          << "Carol,75.0\n"
+          << "Dave,92.0\n"   // cùng score với Bob → stable sort giữ thứ tự Bob < Dave
+          << "Eve,60.5\n"
+          << "Frank,78.0\n";
+    }
+    // queries.txt — cho bài 8
+    {
+        ofstream f("queries.txt");
+        f << "Bob\nEve\nAlice\nZara\nDave\n"; // Zara không tồn tại → NOT_FOUND
+    }
+    // values.csv — cho bài 9 (1 cột, có outlier rõ ràng)
+    {
+        ofstream f("values.csv");
+        f << "value\n";
+        // Dữ liệu chuẩn 10-90, thêm outlier -100 và 200
+        int data[] = {50,55,60,52,48,57,63,51,49,58,
+                      55,60,50,65,47,59,62,53,56,54};
+        for (int v : data) f << v << "\n";
+        f << "-100\n200\n"; // 2 outlier rõ ràng
+    }
+    // data_b10.csv — nhiều cột, có missing
+    {
+        ofstream f("data_b10.csv");
+        f << "id,score_math,score_science,score_lit\n"
+          << "S01,85,90,78\n"
+          << "S02,NA,75,82\n"   // math missing
+          << "S03,90,NA,70\n"   // science missing
+          << "S04,78,88,NA\n"   // lit missing
+          << "S05,92,95,88\n"
+          << "S06,60,65,70\n"
+          << "S07,NA,NA,NA\n"   // tất cả missing
+          << "S08,88,72,80\n";
+    }
+    cout << "[SETUP] Da tao: array_b7.txt, records.csv, queries.txt,"
+         << " values.csv, data_b10.csv\n\n";
+}
+
+int main() {
+    cout << "=== TUAN 10: Tong hop M0 (Bai 7-10) ===\n\n";
+    createSampleFiles();
+
+    // ── Bài 7: Sliding window multi-stat ──
+    cout << "--- Bai 7: Sliding window multi-stat (k=3) ---\n";
+    bai7("array_b7.txt", "b7_rolling.csv");
+    // Kỳ vọng: cửa sổ [2,4,7] → mean=4.333, max=7, min=2
+    //          cửa sổ [4,7,3] → mean=4.667, max=7, min=3 ... v.v.
+
+    // Case biên: k > n
+    {
+        ofstream f("array_k_big.txt");
+        f << "20\n5\n1 2 3 4 5\n";
+    }
+    cout << "       (Bien) k > n: ";
+    bai7("array_k_big.txt", "b7_empty.csv");
+
+    // ── Bài 8: Sort + search ──
+    cout << "\n--- Bai 8: Sort theo score, tra cuu rank ---\n";
+    bai8("records.csv", "queries.txt", "b8_result.csv");
+    // Bob rank=1 (score=92, xuất hiện trước Dave), Dave rank=2
+    // Zara → NOT_FOUND
+
+    // Case biên: records rỗng
+    {
+        ofstream f("rec_empty.csv"); f << "id,score\n";
+        ofstream q("qry_empty.txt"); q << "Someone\n";
+    }
+    cout << "       (Bien) Records rong: ";
+    bai8("rec_empty.csv", "qry_empty.txt", "b8_empty.csv");
+
+    // ── Bài 9: IQR outlier ──
+    cout << "\n--- Bai 9: Phat hien outlier IQR ---\n";
+    bai9("values.csv", "b9_outliers.csv");
+    // Kỳ vọng: -100 và 200 là outlier
+
+    // Case biên: n nhỏ
+    {
+        ofstream f("values_small.csv");
+        f << "value\n10\n20\n30\n";
+    }
+    cout << "       (Bien) n=3 (WARNING expected): ";
+    bai9("values_small.csv", "b9_small.csv");
+
+    // Case biên: tất cả bằng nhau → IQR = 0, không có outlier
+    {
+        ofstream f("values_flat.csv");
+        f << "value\n5\n5\n5\n5\n5\n5\n";
+    }
+    cout << "       (Bien) Tat ca bang nhau: ";
+    bai9("values_flat.csv", "b9_flat.csv");
+
+    // ── Bài 10: Mini-project ──
+    bai10("data_b10.csv");
+
+    cout << "\n=== Hoan thanh! Kiem tra cac file output. ===\n";
+    cout << "  B7: b7_rolling.csv\n"
+         << "  B8: b8_result.csv\n"
+         << "  B9: b9_outliers.csv\n"
+         << "  B10: b10_report.csv, b10_summary.txt\n";
+    return 0;
+}
