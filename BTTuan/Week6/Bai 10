@@ -1,0 +1,191 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+// Kiểu tiện dụng cho ma trận số nguyên
+using Matrix = vector<vector<long long>>;
+
+/* [B1] Đọc ma trận m×n từ file.
+ * Format file: dòng đầu "<m> <n>", sau đó m dòng × n số nguyên.
+ * Trả về false và in cerr nếu không mở được file.
+ */
+bool readMatrix(const string& path, Matrix& mat, int& m, int& n) {
+    ifstream fin(path);
+    if (!fin) {
+        cerr << "[readMatrix] Lỗi: không mở được file '" << path << "'\n";
+        return false;
+    }
+    fin >> m >> n;
+    mat.assign(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i)
+        for (int j = 0; j < n; ++j)
+            fin >> mat[i][j];
+    return true;
+}
+
+/* [B2] Kiểm tra ma trận vuông n×n có đối xứng không.
+ * a[i][j] == a[j][i] với mọi i < j.
+ */
+bool isSymmetric(const Matrix& mat, int n) {
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (mat[i][j] != mat[j][i]) return false;
+    return true;
+}
+
+/* [B3] Xây dựng prefix sum 2D.
+ * pre[i][j] = tổng tất cả phần tử trong hình chữ nhật (0,0)→(i,j).
+ * Công thức: pre[i][j] = a[i][j]
+ *                       + pre[i-1][j]   (hàng trên)
+ *                       + pre[i][j-1]   (cột trái)
+ *                       - pre[i-1][j-1] (bù góc tính 2 lần)
+ */
+Matrix buildPre2D(const Matrix& a, int m, int n) {
+    Matrix pre(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            pre[i][j] = a[i][j];
+            if (i > 0) pre[i][j] += pre[i-1][j];
+            if (j > 0) pre[i][j] += pre[i][j-1];
+            if (i > 0 && j > 0) pre[i][j] -= pre[i-1][j-1];
+        }
+    }
+    return pre;
+}
+
+/* [B4] Truy vấn tổng vùng chữ nhật (x1,y1)→(x2,y2) — O(1).
+ * Công thức bù trừ từ prefix 2D.
+ * Trả về false nếu chỉ số không hợp lệ.
+ */
+bool sumRect(const Matrix& pre,
+             int x1, int y1, int x2, int y2,
+             int m, int n, long long& ans) {
+    if (x1 < 0 || y1 < 0 || x2 >= m || y2 >= n || x1 > x2 || y1 > y2)
+        return false;
+    ans = pre[x2][y2];
+    if (x1 > 0) ans -= pre[x1-1][y2];
+    if (y1 > 0) ans -= pre[x2][y1-1];
+    if (x1 > 0 && y1 > 0) ans += pre[x1-1][y1-1];
+    return true;
+}
+
+/* [B5] Tổng đường chéo chính và phụ của ma trận vuông. */
+void diagSums(const Matrix& mat, int n, long long& mainD, long long& antiD) {
+    mainD = antiD = 0;
+    for (int i = 0; i < n; ++i) {
+        mainD += mat[i][i];
+        antiD += mat[i][n-1-i];
+    }
+}
+
+// ============================================================
+// BÀI 10 — Đếm số vùng chữ nhật con có tổng = K
+// ============================================================
+/*
+ * Thuật toán tối ưu O(m² × n):
+ *   1. Fix cặp hàng (r1, r2) — có O(m²) cặp.
+ *   2. Với mỗi cặp, tạo mảng 1D colSum[j]:
+ *        colSum[j] = tổng cột j từ hàng r1 đến r2
+ *                  = sumRect(pre, r1, j, r2, j)  — O(1) mỗi cột.
+ *   3. Bài toán thu gọn thành: đếm subarray của colSum có tổng = K.
+ *      Dùng kỹ thuật từ Tuần 3 Bài 5: prefix sum + unordered_map.
+ *        - Giữ freq[prefSum] = số lần prefix sum này xuất hiện.
+ *        - Khi prefix sum hiện tại = P, số subarray kết thúc tại đây
+ *          có tổng = K chính là freq[P - K].
+ *
+ * Tổng: O(m² × n) — với m,n ≤ 100 là ~1M thao tác.
+ *
+ * Case biên:
+ *   - K = 0: đếm subarray tổng = 0 (cả mảng toàn 0 thì mọi vùng đều tính).
+ *   - Phần tử âm: vẫn đúng vì dùng hashmap.
+ *   - ma trận rỗng → count = 0.
+ */
+long long countRectSumK(const Matrix& pre, int m, int n, long long K) {
+    long long count = 0;
+ 
+    for (int r1 = 0; r1 < m; ++r1) {
+        for (int r2 = r1; r2 < m; ++r2) {
+            // Bước 2: xây colSum cho cặp hàng (r1, r2)
+            vector<long long> colSum(n);
+            for (int j = 0; j < n; ++j) {
+                long long s;
+                sumRect(pre, r1, j, r2, j, m, n, s);
+                colSum[j] = s;
+            }
+ 
+            // Bước 3: đếm subarray tổng = K bằng prefix + hashmap
+            unordered_map<long long, int> freq;
+            freq[0] = 1;       // prefix = 0 trước phần tử đầu tiên
+            long long psum = 0;
+            for (int j = 0; j < n; ++j) {
+                psum += colSum[j];
+                // Số subarray [l..j] với tổng = K bằng số l có prefix[l-1] = psum - K
+                auto it = freq.find(psum - K);
+                if (it != freq.end()) count += it->second;
+                freq[psum]++;
+            }
+        }
+    }
+    return count;
+}
+ 
+void bai10(const string& matPath, long long K, const string& outPath) {
+    Matrix mat; int m, n;
+    if (!readMatrix(matPath, mat, m, n)) return;
+ 
+    if (m == 0 || n == 0) {
+        ofstream fout(outPath);
+        fout << "count=0\n";
+        cout << "[B10] Ma tran rong, count=0\n";
+        return;
+    }
+ 
+    Matrix pre = buildPre2D(mat, m, n);
+    long long cnt = countRectSumK(pre, m, n, K);
+ 
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B10] Lỗi ghi " << outPath << "\n"; return; }
+    fout << "count=" << cnt << "\n";
+    cout << "[B10] K=" << K << "  so vung co tong=K: " << cnt << "\n";
+}
+
+void createSampleFiles() {
+    // matrix.txt — ma trận 4×5 chứa số âm để test toàn diện
+    {
+        ofstream f("matrix.txt");
+        f << "4 5\n"
+          << " 1  2 -1  3  4\n"
+          << "-2  5  6  7 -3\n"
+          << " 8  9 10 11 12\n"
+          << "-4 -5  2  3  1\n";
+    }
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 10: Đếm vùng con tổng = K ---
+    cout << "\n--- Bai 10: Dem vung con tong = K ---\n";
+    bai10("matrix.txt", 10LL, "b10_out.txt");  // đếm vùng tổng = 10
+    bai10("matrix.txt",  0LL, "b10_zero.txt"); // edge case: K=0
+ 
+    // Case biên: ma trận rỗng (tạo file trống)
+    {
+        ofstream f("empty_mat.txt"); f << "0 0\n";
+    }
+    cout << "\n--- Bai 10: Case bien - ma tran rong ---\n";
+    bai10("empty_mat.txt", 5LL, "b10_empty.txt");
+
+    return 0;
+}
