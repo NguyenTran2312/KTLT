@@ -1,0 +1,231 @@
+/*
+ * tuan9_bai7den10.cpp
+ * TUẦN 9 — Chuỗi nâng cao: Normalize, Tokenize, Frequency  (Bài 7 → 10)
+ * ========================================================================
+ * Hàm TÁI SỬ DỤNG từ Bài 1–6 (khai báo ở PHẦN 1):
+ *   [B1] normalizeLine()    — lowercase, ký tự non-alphanum → space, gom space
+ *   [B2] tokenize()         — tách chuỗi đã normalize thành vector<string>
+ *   [B3] topK()             — top-K từ xuất hiện nhiều nhất
+ *   [B4] loadStopwords()    — đọc stopwords từ file
+ *   [B4] filterStopwords()  — lọc token theo stopwords
+ *   [B5] buildFreqMap()     — xây unordered_map<string,int> tần suất
+ *
+ * Bài MỚI (7–10):
+ *   B7 : Phát hiện từ lặp liên tiếp (≥ 2 lần)
+ *   B8 : Tần suất ký tự a-z trên toàn file
+ *   B9 : Nhận diện ngôn ngữ (EN / VI_SIMPLE / UNKNOWN)
+ *   B10: TF-IDF đơn giản trên tập file — top-5 từ mỗi file
+ *
+ * Biên dịch: g++ -std=c++11 -Wall -o tuan9 tuan9_bai7den10.cpp
+ */
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+
+/* [B1] Trim khoảng trắng đầu/cuối. */
+string trim(const string& s) {
+    int l = 0, r = (int)s.size() - 1;
+    while (l <= r && isspace((unsigned char)s[l])) ++l;
+    while (r >= l && isspace((unsigned char)s[r])) --r;
+    return s.substr(l, r - l + 1);
+}
+
+/* [B1] Normalize 1 dòng văn bản:
+ *   1. Chuyển lowercase.
+ *   2. Mọi ký tự không phải chữ/số (non-alphanum) → space.
+ *   3. Gom nhiều space liên tiếp thành 1 space.
+ *   4. Trim đầu/cuối.
+ * Chỉ xử lý ASCII (isalnum sẽ trả false với ký tự UTF-8 đa byte).
+ */
+string normalizeLine(const string& s) {
+    string result;
+    bool prevSpace = true; // bắt đầu coi như đang ở space để không thêm space đầu
+    for (unsigned char ch : s) {
+        if (isalnum(ch)) {
+            result += tolower(ch);
+            prevSpace = false;
+        } else {
+            // Ký tự đặc biệt → space; gom liên tiếp thành 1
+            if (!prevSpace) {
+                result += ' ';
+                prevSpace = true;
+            }
+        }
+    }
+    // Bỏ space cuối nếu có
+    if (!result.empty() && result.back() == ' ')
+        result.pop_back();
+    return result;
+}
+
+/* [B2] Tách chuỗi đã normalize thành danh sách token theo khoảng trắng. */
+vector<string> tokenize(const string& normalizedLine) {
+    vector<string> tokens;
+    stringstream ss(normalizedLine);
+    string tok;
+    while (ss >> tok) tokens.push_back(tok);
+    return tokens;
+}
+
+/* [B3] Top-K từ xuất hiện nhiều nhất.
+ * Sắp xếp: giảm theo count; nếu bằng → tăng theo thứ tự từ điển.
+ */
+vector<pair<string,int>> topK(const unordered_map<string,int>& freq, int k) {
+    vector<pair<string,int>> vec(freq.begin(), freq.end());
+    sort(vec.begin(), vec.end(), [](const pair<string,int>& a,
+                                    const pair<string,int>& b) {
+        if (a.second != b.second) return a.second > b.second; // giảm theo count
+        return a.first < b.first;                              // tăng theo từ
+    });
+    if (k >= 0 && k < (int)vec.size()) vec.resize(k);
+    return vec;
+}
+
+/* [B4] Đọc danh sách stopwords từ file (1 từ mỗi dòng, đã normalize). */
+unordered_set<string> loadStopwords(const string& path) {
+    unordered_set<string> stops;
+    ifstream fin(path);
+    if (!fin) return stops; // không có file → stop empty (không lọc gì)
+    string line;
+    while (getline(fin, line)) {
+        string w = normalizeLine(trim(line));
+        if (!w.empty()) stops.insert(w);
+    }
+    return stops;
+}
+
+/* [B4] Lọc token theo stopwords. */
+vector<string> filterStopwords(const vector<string>& tokens,
+                                const unordered_set<string>& stops) {
+    vector<string> out;
+    for (const auto& t : tokens)
+        if (!stops.count(t)) out.push_back(t);
+    return out;
+}
+
+/* [B5] Xây dựng bảng tần suất từ danh sách token. */
+unordered_map<string,int> buildFreqMap(const vector<string>& tokens) {
+    unordered_map<string,int> freq;
+    for (const auto& t : tokens) freq[t]++;
+    return freq;
+}
+
+/* Hàm tiện ích: đọc toàn bộ file text, normalize từng dòng, trả về vector token. */
+vector<string> readAndTokenizeFile(const string& path) {
+    ifstream fin(path);
+    if (!fin) { cerr << "Lỗi mở '" << path << "'\n"; return {}; }
+    vector<string> allTokens;
+    string line;
+    while (getline(fin, line)) {
+        string norm = normalizeLine(line);
+        auto toks = tokenize(norm);
+        for (auto& t : toks) allTokens.push_back(t);
+    }
+    return allTokens;
+}
+
+// ============================================================
+// BÀI 7 — Phát hiện từ lặp liên tiếp
+// ============================================================
+/*
+ * Định nghĩa: từ "lặp liên tiếp" là khi cùng một từ xuất hiện
+ *   ≥ 2 lần LIÊN TIẾP nhau trong cùng một dòng.
+ *
+ * Thuật toán (per dòng):
+ *   - Tokenize dòng đó.
+ *   - Dùng 2 biến: prevWord và count.
+ *     + Nếu token[i] == prevWord → count++.
+ *     + Nếu khác → nếu count ≥ 2 thì ghi nhận; reset.
+ *   - Sau vòng lặp kiểm tra lần cuối.
+ *
+ * Output format: "line=<i> word=<w> count=<k>" (1-based line index).
+ *
+ * Case biên:
+ *   - Dòng có < 2 token → không thể có lặp.
+ *   - Từ lặp ≥ 3 lần → ghi 1 dòng với count đúng.
+ *   - File rỗng → không có output nào.
+ */
+void bai7(const string& textPath, const string& outPath) {
+    ifstream fin(textPath);
+    if (!fin) { cerr << "[B7] Lỗi mở " << textPath << "\n"; return; }
+
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B7] Lỗi ghi " << outPath << "\n"; return; }
+
+    int lineNo = 0;
+    int totalRepeats = 0;
+    string line;
+    while (getline(fin, line)) {
+        ++lineNo;
+        string norm = normalizeLine(line);
+        vector<string> toks = tokenize(norm);
+
+        if (toks.size() < 2) continue; // không thể có lặp
+
+        string prevWord = toks[0];
+        int count = 1;
+
+        auto flush = [&]() {
+            // Ghi kết quả nếu từ lặp ≥ 2 lần
+            if (count >= 2) {
+                fout << "line=" << lineNo
+                     << " word=" << prevWord
+                     << " count=" << count << "\n";
+                ++totalRepeats;
+            }
+        };
+
+        for (size_t i = 1; i < toks.size(); ++i) {
+            if (toks[i] == prevWord) {
+                ++count; // tiếp tục chuỗi lặp
+            } else {
+                flush();
+                prevWord = toks[i];
+                count = 1;
+            }
+        }
+        flush(); // xử lý chuỗi lặp ở cuối dòng
+    }
+
+    cout << "[B7] Phat hien " << totalRepeats
+         << " vi tri lap lien tiep, ghi " << outPath << "\n";
+}
+
+
+void createSampleFiles() {
+    // text.txt — văn bản tiếng Anh với một số từ lặp liên tiếp
+    {
+        ofstream f("text.txt");
+        f << "The the quick brown fox jumps over the lazy dog\n"
+          << "Hello hello world world world this is a test test\n"
+          << "No repeats here at all\n"
+          << "One one one token repeated three times\n"
+          << "\n"                                          // dòng rỗng
+          << "The END end End of file\n";
+    }
+    
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 7: Từ lặp liên tiếp ---
+    cout << "--- Bai 7: Phat hien tu lap lien tiep ---\n";
+    bai7("text.txt", "b7_repeats.txt");
+    // Kỳ vọng: dòng 1 "the" count=2; dòng 2 "hello","world","test"
+
+    return 0;
+}
