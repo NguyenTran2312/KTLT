@@ -1,0 +1,164 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iomanip>
+#include <cmath>
+#include <unordered_map>
+#include <unordered_set>
+#include <deque>
+#include <numeric>
+#include <climits>
+using namespace std;
+
+// Kiểu tiện dụng cho ma trận số nguyên
+using Matrix = vector<vector<long long>>;
+
+/* [B1] Đọc ma trận m×n từ file.
+ * Format file: dòng đầu "<m> <n>", sau đó m dòng × n số nguyên.
+ * Trả về false và in cerr nếu không mở được file.
+ */
+bool readMatrix(const string& path, Matrix& mat, int& m, int& n) {
+    ifstream fin(path);
+    if (!fin) {
+        cerr << "[readMatrix] Lỗi: không mở được file '" << path << "'\n";
+        return false;
+    }
+    fin >> m >> n;
+    mat.assign(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i)
+        for (int j = 0; j < n; ++j)
+            fin >> mat[i][j];
+    return true;
+}
+
+/* [B2] Kiểm tra ma trận vuông n×n có đối xứng không.
+ * a[i][j] == a[j][i] với mọi i < j.
+ */
+bool isSymmetric(const Matrix& mat, int n) {
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (mat[i][j] != mat[j][i]) return false;
+    return true;
+}
+
+/* [B3] Xây dựng prefix sum 2D.
+ * pre[i][j] = tổng tất cả phần tử trong hình chữ nhật (0,0)→(i,j).
+ * Công thức: pre[i][j] = a[i][j]
+ *                       + pre[i-1][j]   (hàng trên)
+ *                       + pre[i][j-1]   (cột trái)
+ *                       - pre[i-1][j-1] (bù góc tính 2 lần)
+ */
+Matrix buildPre2D(const Matrix& a, int m, int n) {
+    Matrix pre(m, vector<long long>(n, 0));
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            pre[i][j] = a[i][j];
+            if (i > 0) pre[i][j] += pre[i-1][j];
+            if (j > 0) pre[i][j] += pre[i][j-1];
+            if (i > 0 && j > 0) pre[i][j] -= pre[i-1][j-1];
+        }
+    }
+    return pre;
+}
+
+/* [B4] Truy vấn tổng vùng chữ nhật (x1,y1)→(x2,y2) — O(1).
+ * Công thức bù trừ từ prefix 2D.
+ * Trả về false nếu chỉ số không hợp lệ.
+ */
+bool sumRect(const Matrix& pre,
+             int x1, int y1, int x2, int y2,
+             int m, int n, long long& ans) {
+    if (x1 < 0 || y1 < 0 || x2 >= m || y2 >= n || x1 > x2 || y1 > y2)
+        return false;
+    ans = pre[x2][y2];
+    if (x1 > 0) ans -= pre[x1-1][y2];
+    if (y1 > 0) ans -= pre[x2][y1-1];
+    if (x1 > 0 && y1 > 0) ans += pre[x1-1][y1-1];
+    return true;
+}
+
+/* [B5] Tổng đường chéo chính và phụ của ma trận vuông. */
+void diagSums(const Matrix& mat, int n, long long& mainD, long long& antiD) {
+    mainD = antiD = 0;
+    for (int i = 0; i < n; ++i) {
+        mainD += mat[i][i];
+        antiD += mat[i][n-1-i];
+    }
+}
+
+// ============================================================
+// BÀI 9 — Xoay ma trận 90° theo chiều kim đồng hồ
+// ============================================================
+/*
+ * Công thức xoay: phần tử (i, j) trong ma trận gốc m×n
+ *   → vị trí (j, m-1-i) trong ma trận mới n×m.
+ *
+ * Trực quan: "cột j từ trên xuống" trở thành "hàng j từ trái sang"
+ *            nhưng thứ tự dọc bị đảo (phần tử trên cùng → phải nhất).
+ *
+ * Case biên:
+ *   - m=0 hoặc n=0 → EMPTY.
+ *   - Ma trận 1×1 → không thay đổi.
+ *   - Ma trận vuông → kết quả vẫn vuông cùng kích thước.
+ */
+Matrix rotateClockwise(const Matrix& a, int m, int n) {
+    // Kết quả có kích thước n hàng × m cột
+    Matrix rot(n, vector<long long>(m, 0));
+    for (int i = 0; i < m; ++i)
+        for (int j = 0; j < n; ++j)
+            rot[j][m-1-i] = a[i][j];
+    return rot;
+}
+ 
+void bai9(const string& matPath, const string& outPath) {
+    Matrix mat; int m, n;
+    if (!readMatrix(matPath, mat, m, n)) return;
+ 
+    if (m == 0 || n == 0) {
+        ofstream fout(outPath);
+        fout << "EMPTY\n";
+        cout << "[B9] Ma tran rong.\n";
+        return;
+    }
+ 
+    Matrix rot = rotateClockwise(mat, m, n);
+    // Kích thước mới: n hàng × m cột
+    ofstream fout(outPath);
+    if (!fout) { cerr << "[B9] Lỗi ghi " << outPath << "\n"; return; }
+ 
+    fout << n << " " << m << "\n"; // dòng đầu ghi kích thước mới
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < m; ++j) {
+            if (j) fout << " ";
+            fout << rot[i][j];
+        }
+        fout << "\n";
+    }
+    cout << "[B9] Da xoay " << m << "x" << n
+         << " -> " << n << "x" << m << ", ghi ra " << outPath << "\n";
+}
+
+void createSampleFiles() {
+    // mat_rect.txt — ma trận 3×4 để test xoay (không vuông)
+    {
+        ofstream f("mat_rect.txt");
+        f << "3 4\n"
+          << "1 2 3 4\n"
+          << "5 6 7 8\n"
+          << "9 10 11 12\n";
+    }
+}
+
+int main() {
+    createSampleFiles();
+
+    // --- Bài 9: Xoay ma trận ---
+    cout << "\n--- Bai 9: Xoay 90 do (ma tran 3x4) ---\n";
+    bai9("mat_rect.txt", "rotated.txt");
+    // Ma trận 3×4 → sau xoay 90° CW thành 4×3
+
+    return 0;
+}
