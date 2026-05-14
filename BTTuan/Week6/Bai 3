@@ -1,0 +1,96 @@
+// Phân tích
+// Input:
+// File matrix.txt: Chứa ma trận m×n gồm các số nguyên.
+// Output:
+// File pre2D.txt: Ghi mảng pre2D, mỗi dòng định dạng 'i j pre[i][j]'.
+// Công thức tính pre2D:
+// pre[i][j] = a[i][j] + pre[i-1][j] + pre[i][j-1] - pre[i-1][j-1]
+// Xử lý biên:
+// Nếu i=0 thì pre[i-1][j]=0; nếu j=0 thì pre[i][j-1]=0.
+// Case biên: Ma trận 1×1 → pre[0][0] = a[0][0] + 0 + 0 - 0 = a[0][0].
+// Thiết kế hàm:
+// FMatrix buildPre2D(const FMatrix& a): Nhận ma trận a, trả về ma trận pre2D đã được xây dựng.
+// Hàm đọc file: bool readMatrix(const string& filename, vector<vector<int>>& matrix): Đọc dữ liệu từ file text và nạp vào vector 2 chiều.
+// Hàm ghi file: bool writePre2D(const string& filename, const vector<vector<long long>>& pre2D): Ghi mảng pre2D ra file txt.
+
+#include <iostream>
+#include <vector>       
+#include <fstream>
+#include <string>
+#include <sstream>
+
+using namespace std;
+
+// Hàm đọc file ma trận từ matrix.txt
+bool readMatrix(const string& filename, vector<vector<int>>& matrix) {
+    ifstream file(filename);
+    if (!file.is_open()) {      
+        cerr << "Error opening file: " << filename << endl;
+        return false;
+    }
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue; // Bỏ qua dòng trống
+        vector<int> row;
+        stringstream ss(line);
+        int value;
+        while (ss >> value) {
+            row.push_back(value);
+        }
+        matrix.push_back(row);
+    }
+    file.close();
+    return true;
+}
+// Hàm xây dựng mảng pre2D từ ma trận a
+vector<vector<long long>> buildPre2D(const vector<vector<int>>& a) {
+    if (a.empty() || a[0].empty()) return {};
+    int m = a.size();
+    int n = a[0].size();
+    vector<vector<long long>> pre(m, vector<long long>(n, 0));
+
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            // Lấy giá trị hiện tại
+            long long current = a[i][j];
+            
+            // Xử lý điều kiện biên khéo léo bằng toán tử ba ngôi
+            long long top = (i > 0) ? pre[i-1][j] : 0;
+            long long left = (j > 0) ? pre[i][j-1] : 0;
+            long long top_left = (i > 0 && j > 0) ? pre[i-1][j-1] : 0;
+            
+            // Áp dụng công thức
+            pre[i][j] = current + top + left - top_left;
+        }
+    }
+    return pre;
+}
+// Hàm ghi mảng pre2D ra file pre2D.txt
+bool writePre2D(const string& filename, const vector<vector<long long>>& pre2D) {
+    ofstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << filename << endl;     
+        return false;
+    }
+    for (size_t i = 0; i < pre2D.size(); ++i) {
+        for (size_t j = 0; j < pre2D[i].size(); ++j) {
+            file << i << " " << j << " " << pre2D[i][j] << endl;
+        }
+    }
+    file.close();
+    return true;
+}
+
+int main() {
+    vector<vector<int>> matrix;
+    if (!readMatrix("matrix.txt", matrix)) {
+        return 1; // Lỗi đọc file
+    }
+    vector<vector<long long>> pre2D = buildPre2D(matrix);
+    if (!writePre2D("pre2D.txt", pre2D)) {
+        cout << "Error writing file: pre2D.txt" << endl;
+        return 1; // Lỗi ghi file
+    }
+    cout << "pre2D matrix has been written to pre2D.txt successfully." << endl;
+    return 0;
+}
