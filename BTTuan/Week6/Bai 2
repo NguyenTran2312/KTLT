@@ -1,0 +1,81 @@
+// Phân tích
+// Input:
+// File matrix.txt: Chứa ma trận m×n gồm các số nguyên.
+// Output:
+// In ra màn hình is_symmetric=1 nếu ma trận đối xứng, ngược lại is_symmetric=0.
+// Điều kiện đối xứng: 
+// 1. Phải là ma trận vuông (số hàng m == số cột n). Nếu m != n, kết luận ngay là không đối xứng (is_symmetric=0).
+// 2. Các phần tử qua đường chéo chính phải bằng nhau: matrix[i][j] == matrix[j][i].
+// Tối ưu thuật toán:
+// - Chỉ cần kiểm tra nửa trên của ma trận (đường chéo trên), tức là j chạy từ i + 1 đến n - 1. Độ phức tạp O(n^2 / 2).
+// Xử lý case biên: 
+// - Ma trận rỗng (n = 0): Coi là đối xứng (is_symmetric=1).
+// - Ma trận 1x1 (n = 1): Luôn đối xứng (is_symmetric=1). 
+// Thiết kế hàm:
+// // Hàm đọc file: bool readMatrix(const string& filename, vector<vector<int>>& matrix): Đọc dữ liệu từ file text và nạp vào vector 2 chiều.
+// bool isSymmetric(const vector<vector<int>>& matrix): Kiểm tra tính đối xứng của ma trận.
+// - Lấy m = matrix.size(). Nếu m == 0 return true (đối xứng).
+// - Lấy n = matrix[0].size(). Nếu m != n return false (không đối xứng).
+// - Duyệt vòng lặp i từ 0 đến n-1, vòng lặp j từ i+1 đến n-1. Nếu matrix[i][j] != matrix[j][i] return false (không đối xứng).
+// - Nếu vượt qua hết vòng lặp, return true (đối xứng).
+// Pipeline:
+// Đọc matrix.txt: Lấy dữ liệu ma trận nạp vào biến matrix.
+// Gọi hàm isSymmetric: Truyền ma trận đã đọc vào để kiểm tra tính đối xứng.
+// In kết quả: Xuất is_symmetric=1 nếu đối xứng, ngược lại is_symmetric=0.  
+
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>   
+#include <sstream>
+
+using namespace std;
+
+// Hàm đọc file ma trận từ matrix.txt
+bool readMatrix(const string& filename, vector<vector<int>>& matrix) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << filename << endl;
+        return false;
+    }
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue; // Bỏ qua dòng trống
+        vector<int> row;        
+        stringstream ss(line);
+        int value;
+        while (ss >> value) {
+            row.push_back(value);
+        }
+        matrix.push_back(row);
+    }           
+    file.close();
+    return true;
+}
+
+// Hàm kiểm tra tính đối xứng của ma trận
+bool isSymmetric(const vector<vector<int>>& matrix) {
+    int m = matrix.size();
+    if (m == 0) return true; // Ma trận rỗng coi là đối xứng
+    int n = matrix[0].size();
+    if (m != n) return false; // Không vuông → không đối xứng   
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            if (matrix[i][j] != matrix[j][i]) {
+                return false; // Không đối xứng
+            }
+        }
+    }
+    // Case biên n=1 tự động pass qua vòng lặp và xuống đến đây
+    return true; // Đối xứng
+}
+
+int main() {
+    vector<vector<int>> matrix;
+    if (!readMatrix("matrix1.txt", matrix)) {
+        return 1; // Lỗi đọc file
+    }
+    bool symmetric = isSymmetric(matrix);
+    cout << "is_symmetric=" << (symmetric ? 1 : 0) << endl;
+    return 0;
+}
