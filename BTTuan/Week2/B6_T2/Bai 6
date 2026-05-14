@@ -1,0 +1,77 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+using namespace std;
+
+// ── Đọc mảng từ file ─────────────────────────────────────────────────────────
+bool readArray(const string& path, vector<int>& arr) {
+    ifstream fin(path);
+    if (!fin) {
+        cerr << "[ERROR] Khong mo duoc file: " << path << "\n";
+        return false;
+    }
+    int n;
+    if (!(fin >> n) || n < 0) {
+        cerr << "[ERROR] n khong hop le.\n";
+        return false;
+    }
+    arr.resize(n);
+    for (int i = 0; i < n; ++i) {
+        if (!(fin >> arr[i])) {
+            cerr << "[ERROR] Doc phan tu thu " << i << " that bai.\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ── Tìm chỉ số phần tử lớn nhất (chỉ số nhỏ nhất nếu hòa) ───────────────────
+// Trả về -1 nếu mảng rỗng
+int findMaxIdx(const vector<int>& arr) {
+    if (arr.empty()) return -1;
+    int maxIdx = 0;
+    for (int i = 1; i < (int)arr.size(); ++i) {
+        if (arr[i] > arr[maxIdx])
+            maxIdx = i;
+    }
+    return maxIdx;
+}
+
+// ── Ghi kết quả ──────────────────────────────────────────────────────────────
+bool writeOutput(const string& path, int maxVal, int maxIdx) {
+    ofstream fout(path);
+    if (!fout) {
+        cerr << "[ERROR] Khong mo duoc file output: " << path << "\n";
+        return false;
+    }
+    fout << "max_val=" << maxVal << "\n";
+    fout << "max_idx=" << maxIdx << "\n";
+    return true;
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+int main() {
+    const string INPUT  = "input";
+    const string OUTPUT = "output.txt";
+
+    vector<int> arr;
+    if (!readArray(INPUT, arr)) return 1;
+
+    // Case biên: mảng rỗng
+    if (arr.empty()) {
+        ofstream fout(OUTPUT);
+        if (!fout) { cerr << "[ERROR] Khong mo duoc file output.\n"; return 1; }
+        fout << "EMPTY\n";
+        cout << "Mang rong → EMPTY\n";
+        return 0;
+    }
+
+    int idx = findMaxIdx(arr);
+    int val = arr[idx];
+
+    if (!writeOutput(OUTPUT, val, idx)) return 1;
+
+    cout << "max_val=" << val << " / max_idx=" << idx << "\n";
+    return 0;
+}
