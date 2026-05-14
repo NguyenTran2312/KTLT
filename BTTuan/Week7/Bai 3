@@ -1,0 +1,135 @@
+
+// Phân tích:
+// Input:
+// File fractions.csv: Chứa danh sách các phân số (num, den).
+// Output: 
+// File sorted.csv: Chứa danh sách các phân số đã được lọc invalid, chuẩn hoá và sắp xếp tăng dần.
+// Thuật toán so sánh:
+// - So sánh hai phân số a/b và c/d bằng cách nhân chéo: a*d và c*b.
+// - Vì a, b, c, d có thể lên tới giới hạn của long long (khoảng 9*10^18), phép nhân a*d có thể vượt quá giới hạn 64-bit và gây tràn số (overflow).
+// - Giải pháp: Ép kiểu sang __int128 (số nguyên 128-bit được hỗ trợ bởi trình biên dịch GCC/Clang) trước khi nhân.
+// Thiết kế hàm:
+// - Tái sử dụng struct Fraction, hàm gcd(), normalize(), readFractionsCSV(), writeFractionsCSV().
+// - Hàm int cmpFrac(Fraction a, Fraction b): 
+//   + Trả về -1 nếu a < b (left < right).
+//   + Trả về 1 nếu a > b (left > right).
+//   + Trả về 0 nếu a == b (left == right).
+// - Lambda trong std::sort: [](Fraction a, Fraction b) { return cmpFrac(a, b) < 0; }
+// Pipeline:
+// Đọc data -> Lọc invalid & Chuẩn hoá -> Push vào vector hợp lệ -> std::sort -> Ghi data.
+
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <cmath>
+
+using namespace std;
+
+// Cấu trúc phân số
+struct Fraction {
+    long long num; // Tử số
+    long long den; // Mẫu số
+};  
+// Thuật toán Euclid để tìm GCD
+long long gcd(long long a, long long b) {
+    a = abs(a); 
+    b = abs(b);
+    while (b != 0) {
+        long long t = a % b;       
+        a = b;
+        b = t;
+    }
+    return a;
+}
+// Hàm chuẩn hoá (trả về false nếu mẫu = 0)
+bool normalize(Fraction& f) {
+    if (f.den == 0) return false;
+    if (f.num == 0) {
+        f.den = 1;
+        return true;
+    }
+    if (f.den < 0) {
+        f.num = -f.num;
+        f.den = -f.den;
+    }
+    long long g = gcd(f.num, f.den);
+    f.num /= g;
+    f.den /= g;
+    return true;
+}
+// Hàm so sánh phân số (trả về -1/0/1)
+int cmpFrac(Fraction a, Fraction b) {
+    __int128_t left = (__int128_t)a.num * (__int128_t)b.den;
+    __int128_t right = (__int128_t)b.num * (__int128_t)a.den;
+    
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+}
+// Hàm đọc file fractions.csv
+bool readFractionsCSV(const string& filename, vector<Fraction>& fractions) {
+    ifstream file(filename);
+    if (!file.is_open()) return false;
+    
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        stringstream ss(line);
+        string numStr, denStr;
+        
+        if (getline(ss, numStr, ',') && getline(ss, denStr)) {
+            try {
+                Fraction f = {stoll(numStr), stoll(denStr)};
+                fractions.push_back(f);
+            } catch (...) {
+                continue;
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Hàm ghi file
+bool writeFractionsCSV(const string& filename, const vector<Fraction>& fractions) {
+    ofstream file(filename);
+    if (!file.is_open()) return false;
+    
+    file << "num,den\n";
+    for (const auto& f : fractions) {
+        file << f.num << "," << f.den << "\n";
+    }
+    
+    file.close();
+    return true;
+}
+int main() {
+    vector<Fraction> fractions;
+    
+    if (!readFractionsCSV("fractions.csv", fractions)) {
+        cerr << "Error: Could not open fractions.csv\n";
+        return 1;
+    }
+    
+    vector<Fraction> validFractions;
+    for (auto& f : fractions) {
+        if (normalize(f)) {
+            validFractions.push_back(f);
+        }
+    }
+    
+    sort(validFractions.begin(), validFractions.end(), [](Fraction a, Fraction b) {
+        return cmpFrac(a, b) < 0;
+    });
+    
+    if (!writeFractionsCSV("sorted.csv", validFractions)) {
+        cerr << "Error: Could not open sorted.csv\n";
+        return 1;
+    }
+    
+    cout << "Successfully processed and sorted fractions. Output written to sorted.csv\n";
+    return 0;
+}
