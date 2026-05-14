@@ -1,0 +1,158 @@
+// Phân tích:
+// Input: 
+// File data.csv: Gồm 2 cột (id, value). Cột value có thể chứa giá trị trống (blank) hoặc chuỗi "NA".
+// Output: 
+// 1. File report.csv: (id, value_imputed, zscore) với số thực format setprecision(6).
+// 2. File summary.txt: Thống kê (count_valid, count_missing, mean, std).
+// Các bước xử lý (Pipeline):
+// 1. parseCSV(): Đọc file, phân loại dòng hợp lệ (valid) và dòng thiếu dữ liệu (missing). 
+//    - Đếm count_valid và count_missing.
+//    - Lưu dữ liệu vào một cấu trúc (struct) chứa cờ đánh dấu is_missing.
+// 2. computeStats(): Tính toán giá trị trung bình (mean) và độ lệch chuẩn (std) dựa trên các dòng hợp lệ.
+//    - Công thức std (population): sqrt( sum((x - mean)^2) / count_valid )
+// 3. imputeAndScore(): Duyệt lại dữ liệu.
+//    - Nếu is_missing == true -> Gán value = mean (Imputation).
+//    - Tính z-score: z = (value - mean) / std. Nếu std == 0 thì z = 0.
+// Xử lý case biên:
+// - Tất cả đều missing (count_valid == 0): mean = 0, std = 0, toàn bộ z = 0.
+// - Dữ liệu hằng số (tất cả value hợp lệ đều bằng nhau): std = 0, z = 0.
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <cmath>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+
+// Cấu trúc lưu trữ một dòng dữ liệu
+struct Record {
+    string id;
+    double value;
+    bool is_missing;
+    double zscore;
+};
+// Hàm đọc và phân loại dữ liệu từ CSV
+void parseCSV(const string& filename, vector<Record>& records, int& count_valid, int& count_missing) {
+    ifstream file(filename);
+    if (!file.is_open()) return;
+
+    string line; 
+    // Bỏ qua dòng header nếu có (giả định dòng đầu là "id,value")
+    if (getline(file, line)) {}
+
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        if (line.back() == '\r') line.pop_back();
+        stringstream ss(line);
+        string id, val_str;
+        if (getline(ss, id, ',')) {
+            // Lấy phần value (có thể trống)
+            getline(ss, val_str); 
+            Record rec;
+            rec.id = id;
+            rec.zscore = 0.0;
+            // Kiểm tra missing (blank hoặc "NA")
+            if (val_str.empty() || val_str == "NA") {
+                rec.is_missing = true;
+                rec.value = 0.0; // Tạm gán 0, sẽ impute sau
+                count_missing++;
+            } else {
+                try {
+                    rec.value = stod(val_str);
+                    rec.is_missing = false;
+                    count_valid++;
+                } catch (...) {
+                    // Nếu lỗi parse số (vd chứa chữ linh tinh), coi như missing
+                    rec.is_missing = true;
+                    rec.value = 0.0;
+                    count_missing++;
+                }
+            }
+            records.push_back(rec);
+        }
+    }
+    file.close();
+}
+
+// Hàm tính Mean và Std
+void computeStats(const vector<Record>& records, int count_valid, double& mean, double& std_dev) {
+    // Case biên: Tất cả đều missing
+    if (count_valid == 0) {
+        mean = 0.0;
+        std_dev = 0.0;
+        return;
+    }
+    // Tính Mean
+    double sum = 0.0;
+    for (const auto& rec : records) {
+        if (!rec.is_missing) {
+            sum += rec.value;
+        }
+    }
+    mean = sum / count_valid;
+    // Tính Standard Deviation (Độ lệch chuẩn)
+    double sum_sq_diff = 0.0;
+    for (const auto& rec : records) {
+        if (!rec.is_missing) {
+            sum_sq_diff += pow(rec.value - mean, 2);
+        }
+    }
+    // Sử dụng công thức std cho quần thể (population)
+    std_dev = sqrt(sum_sq_diff / count_valid);
+}
+
+// Hàm điền giá trị khuyết và tính Z-score
+void imputeAndScore(vector<Record>& records, double mean, double std_dev) {
+    for (auto& rec : records) {
+        // Impute
+        if (rec.is_missing) {
+            rec.value = mean;
+        }
+        // Tính Z-score
+        if (std_dev == 0.0) {
+            rec.zscore = 0.0;
+        } else {
+            rec.zscore = (rec.value - mean) / std_dev;
+        }
+    }
+}
+int main() {
+    vector<Record> records;
+    int count_valid = 0, count_missing = 0;
+    parseCSV("data1.csv", records, count_valid, count_missing);
+
+    if(records.empty()) {
+        cerr << "Error: No data found in data.csv\n";
+        return 1;
+    }
+
+    double mean = 0.0, std_dev = 0.0;
+    computeStats(records, count_valid, mean, std_dev);
+    imputeAndScore(records, mean, std_dev);
+
+    // Ghi report.csv
+    ofstream reportFile("report1.csv");
+    if (reportFile.is_open()) {
+        reportFile << "id,value_imputed,zscore\n";
+        reportFile << fixed << setprecision(6);
+        for (const auto& rec : records) {
+            reportFile << rec.id << "," << rec.value << "," << rec.zscore << "\n";
+        }
+        reportFile.close();
+    }
+
+    // Ghi summary.txt
+    ofstream summaryFile("summary1.txt");
+    if (summaryFile.is_open()) {
+        summaryFile << "count_valid=" << count_valid << "\n";
+        summaryFile << "count_missing=" << count_missing << "\n";
+        summaryFile << fixed << setprecision(6);
+        summaryFile << "mean=" << mean << "\n";
+        summaryFile << "std=" << std_dev << "\n";
+        summaryFile.close();
+    }
+    cout << "Processing completed. Check report.csv and summary.txt for results." << endl;
+    return 0;
+}
