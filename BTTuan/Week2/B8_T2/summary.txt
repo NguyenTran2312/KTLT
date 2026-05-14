@@ -1,0 +1,3 @@
+count_valid=6
+count_missing=4
+median=5.650000
