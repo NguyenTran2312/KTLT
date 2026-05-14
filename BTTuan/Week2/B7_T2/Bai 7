@@ -1,0 +1,90 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <iomanip>
+#include <algorithm>
+using namespace std;
+
+// ── Đọc mảng số thực ─────────────────────────────────────────────────────────
+bool readArray(const string& path, vector<double>& arr) {
+    ifstream fin(path);
+    if (!fin) {
+        cerr << "[ERROR] Khong mo duoc file: " << path << "\n";
+        return false;
+    }
+    int n;
+    if (!(fin >> n) || n < 0) {
+        cerr << "[ERROR] n khong hop le.\n";
+        return false;
+    }
+    arr.resize(n);
+    for (int i = 0; i < n; ++i) {
+        if (!(fin >> arr[i])) {
+            cerr << "[ERROR] Doc phan tu thu " << i << " that bai.\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ── Tính Min-Max normalize ────────────────────────────────────────────────────
+// Trả về vector scaled; nếu max==min thì mọi scaled = 0
+vector<double> minMaxScale(const vector<double>& arr) {
+    int n = (int)arr.size();
+    vector<double> scaled(n, 0.0);
+    if (n == 0) return scaled;
+
+    double minVal = *min_element(arr.begin(), arr.end());
+    double maxVal = *max_element(arr.begin(), arr.end());
+    double range  = maxVal - minVal;
+
+    if (range == 0.0) {
+        // Case biên: max == min → tất cả scaled = 0
+        return scaled;
+    }
+    for (int i = 0; i < n; ++i)
+        scaled[i] = (arr[i] - minVal) / range;
+
+    return scaled;
+}
+
+// ── Ghi CSV kết quả ──────────────────────────────────────────────────────────
+bool writeCSV(const string& path,
+              const vector<double>& arr,
+              const vector<double>& scaled) {
+    ofstream fout(path);
+    if (!fout) {
+        cerr << "[ERROR] Khong mo duoc file output: " << path << "\n";
+        return false;
+    }
+    fout << fixed << setprecision(6);
+    fout << "i,original,scaled\n";
+    for (int i = 0; i < (int)arr.size(); ++i)
+        fout << i << "," << arr[i] << "," << scaled[i] << "\n";
+    return true;
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+int main() {
+    const string INPUT  = "input.txt";
+    const string OUTPUT = "normalized.csv";
+
+    vector<double> arr;
+    if (!readArray(INPUT, arr)) return 1;
+
+    // Case biên: mảng rỗng
+    if (arr.empty()) {
+        ofstream fout(OUTPUT);
+        if (!fout) { cerr << "[ERROR] Khong mo duoc file output.\n"; return 1; }
+        fout << "i,original,scaled\n";
+        cout << "Mang rong → chi co header.\n";
+        return 0;
+    }
+
+    vector<double> scaled = minMaxScale(arr);
+    if (!writeCSV(OUTPUT, arr, scaled)) return 1;
+
+    cout << "Da ghi " << arr.size() << " phan tu vao " << OUTPUT << "\n";
+    return 0;
+}
