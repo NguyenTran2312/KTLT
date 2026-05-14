@@ -1,0 +1,146 @@
+
+// Phân tích
+// Input:
+// File fractions.csv: Chứa các cặp (num, den) tương ứng với tử số và mẫu số.
+// Output:
+// File normalized.csv: Chứa các phân số đã được chuẩn hoá (num, den).
+// In ra màn hình: Số lượng phân số không hợp lệ (den = 0).
+// Quy tắc chuẩn hoá:
+// 1. Phân số không hợp lệ: mẫu số (den) bằng 0.
+// 2. Mẫu âm: Nếu den < 0, đổi dấu cả tử và mẫu (num = -num, den = -den) để mẫu luôn dương.
+// 3. Tử số bằng 0: Nếu num = 0, chuẩn hoá thành 0/1 (bất kể mẫu trước đó là bao nhiêu, miễn khác 0).
+// 4. Rút gọn: Chia cả tử và mẫu cho ước chung lớn nhất (GCD) của chúng.
+// Thiết kế cấu trúc và hàm:
+// Hàm đọc file: bool readFractionsCSV(const string& filename, vector<Fraction>& fractions).
+// Cấu trúc struct Fraction { long long num; long long den; }: Lưu trữ phân số. Sử dụng long long để tránh tràn số khi tính toán.
+// Hàm long long gcd(long long a, long long b): Thuật toán Euclid tìm ước chung lớn nhất của trị tuyệt đối 2 số.
+// Hàm bool normalize(Fraction& f): Thực hiện chuẩn hoá phân số f trực tiếp. Trả về false nếu f.den == 0, ngược lại thực hiện các bước chuẩn hoá và trả về true.
+// Hàm ghi file: bool writeNormalized(const string& filename, const vector<Fraction>& fractions).
+// Pipeline:
+// Đọc fractions.csv: Đọc từng dòng, tách tử số và mẫu số bằng dấu phẩy (,).
+// Xử lý: Duyệt qua danh sách phân số, gọi hàm normalize(). Nếu false -> tăng biến đếm invalid. Nếu true -> lưu vào danh sách hợp lệ.
+// Ghi normalized.csv: Xuất danh sách phân số đã chuẩn hoá.
+// In kết quả: Thông báo số lượng phân số invalid ra màn hình.
+
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>   
+#include <sstream>
+#include <cmath>
+
+using namespace std;
+
+// Cấu trúc phân số
+struct Fraction {
+    long long num; // Tử số
+    long long den; // Mẫu số
+};
+
+// Thuật toán Euclid để tìm GCD
+long long gcd(long long a, long long b) {
+    a = abs(a);
+    b = abs(b);
+    while (b != 0) {
+        long long t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;   
+}
+
+// Hàm chuẩn hoá phân số
+bool normalize(Fraction& f) {
+    // 1. Case biên: Mẫu số bằng 0 -> Invalid
+    if (f.den == 0) return false;
+    
+    // 2. Case biên: Tử số bằng 0 -> 0/1
+    if (f.num == 0) {
+        f.den = 1;
+        return true;
+    }
+    
+    // 3. Đưa dấu âm lên tử số (nếu mẫu số âm)
+    if (f.den < 0) {
+        f.num = -f.num;
+        f.den = -f.den;
+    }
+    
+    // 4. Rút gọn phân số bằng GCD
+    long long g = gcd(f.num, f.den);
+    f.num /= g;
+    f.den /= g;
+    
+    return true;
+}
+
+// Hàm đọc file fractions.csv
+bool readFractionsCSV(const string& filename, vector<Fraction>& fractions) {
+    ifstream file(filename);
+    if (!file.is_open()) return false;
+    
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        stringstream ss(line);
+        string numStr, denStr;
+        
+        // Cắt chuỗi theo dấu phẩy
+        if (getline(ss, numStr, ',') && getline(ss, denStr)) {
+            try {
+                // Chuyển chuỗi thành số nguyên
+                long long n = stoll(numStr);
+                long long d = stoll(denStr);
+                fractions.push_back({n, d});
+            } catch (...) {
+                // Bỏ qua các dòng không phải số 
+                continue;
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Hàm ghi file normalized.csv
+bool writeNormalized(const string& filename, const vector<Fraction>& fractions) {
+    ofstream file(filename);
+    if (!file.is_open()) return false;
+    
+    // Ghi tiêu đề (header)
+    file << "num,den\n";
+    
+    for (const auto& f : fractions) {
+        file << f.num << "," << f.den << "\n";
+    }
+    
+    file.close();
+    return true;
+}
+int main() {
+    vector<Fraction> fractions;
+    if (!readFractionsCSV("fractions0.csv", fractions)) {
+        cerr << "Error reading file: fractions.csv" << endl;
+        return 1; // Lỗi đọc file
+    }
+    
+    vector<Fraction> normalizedFractions;
+    int invalidCount = 0;
+    
+    // Xử lý từng phân số
+    for (Fraction f : fractions) {
+        if (normalize(f)) {
+            normalizedFractions.push_back(f);
+        } else {
+            invalidCount++;
+        }
+    }
+    // Ghi kết quả ra file
+    if (!writeNormalized("normalized0.csv", normalizedFractions)) {
+        cerr << "Error writing file: normalized.csv" << endl;
+        return 1;
+    }
+    cout << "Number of invalid fractions: " << invalidCount << endl;
+    cout << "Normalization complete. Valid fractions written to normalized.csv" << endl;
+    return 0;
+}
