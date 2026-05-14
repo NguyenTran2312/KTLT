@@ -1,0 +1,160 @@
+// Phân tích:
+// Input: 
+// - File polynomials.csv: Danh sách đa thức.
+// - File x_values.csv: Danh sách các giá trị x.
+// Output: 
+// - File report.csv: Báo cáo kết quả tính toán P(x) và thống kê số lượng hợp lệ/không hợp lệ.
+// Yêu cầu cấu trúc (Bắt buộc):
+// Phải chia code thành 2 nhóm hàm (modules) riêng biệt:
+// 1. Module IO (Nhập/Xuất):
+//    - bool readPoly(...): Đọc file đa thức. Bắt case degree < 0 (invalid), thiếu hệ số (bù 0), thừa hệ số (cắt bỏ).
+//    - bool readX(...): Đọc file x_values. Case biên: file rỗng vẫn hợp lệ (không lỗi, chỉ là mảng rỗng).
+//    - bool writeReport(...): Ghi kết quả ra report.csv. Format chuẩn: header -> data -> dải phân cách '---' -> counts. Ép kiểu setprecision(6).
+// 2. Module Processing (Xử lý):
+//    - double evalHorner(...): Chuyên biệt cho việc tính toán toán học. Nhận mảng hệ số và giá trị x, trả về P(x).
+// Pipeline:
+// Gọi hàm đọc file -> Tính toán nội suy trong lúc ghi -> Ghi file report.
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+// Cấu trúc lưu đa thức
+struct Poly {
+    string id;
+    int deg;
+    vector<double> a;
+};
+
+// ==========================================
+// MODULE 2: PROCESSING (Xử lý toán học)
+// ==========================================
+
+// Tính P(x) bằng thuật toán Horner
+double evalHorner(const vector<double>& a, double x) {
+    if (a.empty()) return 0.0;
+    
+    int n = a.size() - 1;
+    double res = a[n];
+    
+    for (int i = n - 1; i >= 0; --i) {
+        res = res * x + a[i];
+    }
+    return res;
+}
+
+// ==========================================
+// MODULE 1: IO (Nhập/Xuất dữ liệu)
+// ==========================================
+// Đọc file đa thức
+bool readPoly(const string& path, vector<Poly>& validPolys, int& invalidCount) {
+    ifstream file(path);
+    if (!file.is_open()) return false;
+
+    string line;
+    invalidCount = 0;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        string id, deg_str, token;
+        if (getline(ss, id, ',') && getline(ss, deg_str, ',')) {
+            try {
+                int degree = stoi(deg_str);
+                // Case biên: Bậc âm -> Invalid
+                if (degree < 0) {
+                    invalidCount++;
+                    continue;
+                }
+                Poly p;
+                p.id = id;
+                p.deg = degree;
+                // Đọc các hệ số
+                while (getline(ss, token, ',')) {
+                    try {
+                        p.a.push_back(stod(token));
+                    } catch (...) {
+                        p.a.push_back(0.0);
+                    }
+                }
+
+                // Case biên: Thiếu hệ số -> Bù 0
+                while (p.a.size() <= p.deg) {
+                    p.a.push_back(0.0);
+                }
+                // Dọn dẹp nếu file CSV bị thừa hệ số
+                if (p.a.size() > p.deg + 1) {
+                    p.a.resize(p.deg + 1);
+                }
+                validPolys.push_back(p);
+            } catch (...) {
+                continue; // Bỏ qua header hoặc dòng rác
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Đọc file x_values
+bool readX(const string& path, vector<double>& xValues) {
+    ifstream file(path);
+    if (!file.is_open()) return false;
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        try {
+            xValues.push_back(stod(line));
+        } catch (...) {
+            continue;
+        }
+    }
+    file.close();
+    return true;
+}
+// Ghi báo cáo report.csv
+bool writeReport(const string& path, const vector<Poly>& validPolys, const vector<double>& xValues, int invalidCount) {
+    ofstream file(path);
+    if (!file.is_open()) return false;
+
+    // 1. Ghi header
+    file << "id,x,P(x)\n";
+    file << fixed << setprecision(6);
+    // 2. Tính và ghi data (Kết nối module Processing)
+    for (const auto& p : validPolys) {
+        for (double x : xValues) {
+            double px = evalHorner(p.a, x);
+            file << p.id << "," << x << "," << px << "\n";
+        }
+    }
+    // 3. Ghi phân cách và counts 
+    file << "---\n";
+    file << "valid_count," << validPolys.size() << "\n";
+    file << "invalid_count," << invalidCount << "\n";
+
+    file.close();
+    return true;
+}
+int main() {
+    vector<Poly> validPolys;
+    vector<double> xValues;
+    int invalidCount = 0;
+
+    if (!readPoly("polynomials.csv", validPolys, invalidCount)) {
+        cerr << "Error: Could not read polynomials.csv\n";
+        return 1;
+    }
+    if (!readX("x_values0.csv", xValues)) {
+        cerr << "Error: Could not read x_values.csv\n";
+        return 1;
+    }
+    if (!writeReport("report0.csv", validPolys, xValues, invalidCount)) {
+        cerr << "Error: Could not write report.csv\n";
+        return 1;
+    }
+    cout << "Processing completed. Check report.csv for results." << endl;
+    return 0;
+}
