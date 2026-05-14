@@ -1,0 +1,154 @@
+// Phân tích
+// Input:
+// File pairs.csv: Chứa 4 giá trị trên mỗi dòng (n1, d1, n2, d2), tương ứng với 2 phân số f1 = n1/d1 và f2 = n2/d2.
+// Output:
+// File results.csv: Ghi kết quả tổng và hiệu đã chuẩn hoá (sum_num, sum_den, diff_num, diff_den).
+// Công thức tính tổng và hiệu:
+// sum = f1 + f2 = (n1*d2 + n2*d1) / (d1*d2)
+// diff = f1 - f2 = (n1*d2 - n2*d1) / (d1*d2)
+// Xử lý và chuẩn hoá:
+// - Tái sử dụng hàm gcd() và normalize() từ bài 1 để rút gọn, đưa mẫu âm thành dương, và xử lý tử số 0.
+// - Case biên "2 phân số nghịch nhau": Ví dụ 1/2 và -1/2. Khi tính tổng, tử số sẽ bằng 0. Hàm normalize() sẽ tự động bắt case này (num = 0) và chuyển mẫu thành 1, cho ra kết quả đúng chuẩn là 0/1.
+// Thiết kế hàm:
+// struct Fraction { long long num; long long den; }: Lưu trữ phân số.
+// Hàm long long gcd(long long a, long long b): Thuật toán Euclid tìm ước chung lớn nhất.
+// Hàm bool normalize(Fraction& f): Chuẩn hoá phân số f. Trả về false nếu mẫu số bằng 0, ngược lại thực hiện chuẩn hoá và trả về true.
+// Fraction addFrac(const Fraction& f1, const Fraction& f2): Tính tổng 2 phân số.
+// Fraction subFrac(const Fraction& f1, const Fraction& f2): Tính hiệu 2 phân số.
+// Hàm đọc file: bool readPairsCSV(const string& filename, vector<pair<Fraction, Fraction>>& pairs).
+// Hàm ghi file: bool writeResultsCSV(const string& filename, const vector<pair<Fraction, Fraction>>& results).
+// Pipeline:
+// Pipeline:
+// Đọc pairs.csv: Tách 4 số n1, d1, n2, d2 trên từng dòng.
+// Tính toán: Với mỗi dòng, tạo 2 biến Fraction, gọi addFrac và subFrac.
+// Ghi file: Xuất 4 thuộc tính (tử tổng, mẫu tổng, tử hiệu, mẫu hiệu) vào kết quả results.csv.
+
+#include <iostream>
+#include <vector>       
+#include <fstream>
+#include <string>
+#include <sstream>  
+#include <cmath>
+
+using namespace std;
+
+// Cấu trúc phân số
+struct Fraction {
+    long long num; // Tử số
+    long long den; // Mẫu số
+};
+// Thuật toán Euclid để tìm GCD
+long long gcd(long long a, long long b) {
+    a = abs(a);
+    b = abs(b);
+    while (b != 0) {
+        long long t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+// Hàm chuẩn hoá phân số
+bool normalize(Fraction& f) {
+    if (f.den == 0) return false; // Mẫu số bằng 0 -> Invalid
+    if (f.num == 0) { // Tử số bằng 0 -> 0/1
+        f.den = 1;
+        return true;
+    }
+    if (f.den < 0) { // Mẫu âm -> đổi dấu cả tử và mẫu
+        f.num = -f.num;
+        f.den = -f.den; 
+    }   
+    long long g = gcd(f.num, f.den); // Rút gọn phân số
+    f.num /= g;
+    f.den /= g;
+    return true;
+}
+// Hàm cộng 2 phân số
+Fraction addFrac(const Fraction& f1, const Fraction& f2) {
+    Fraction res;
+    res.num = f1.num * f2.den + f2.num * f1.den;
+    res.den = f1.den * f2.den;
+    normalize(res); // Chuẩn hoá kết quả
+    return res;
+}
+// Hàm trừ 2 phân số
+Fraction subFrac(const Fraction& f1, const Fraction& f2) {
+    Fraction res;
+    res.num = f1.num * f2.den - f2.num * f1.den;
+    res.den = f1.den * f2.den;
+    normalize(res); // Chuẩn hoá kết quả
+    return res;
+}
+// Hàm đọc file pairs.csv
+bool readPairsCSV(const string& filename, vector<pair<Fraction, Fraction>>& pairs) {
+    ifstream file(filename);
+    if (!file.is_open()) return false;
+    
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue; // Bỏ qua dòng trống        
+        stringstream ss(line);
+        string n1Str, d1Str, n2Str, d2Str;
+        
+        if (getline(ss, n1Str, ',') && getline(ss, d1Str, ',') && getline(ss, n2Str, ',') && getline(ss, d2Str)) {
+            try { 
+                Fraction f1, f2;
+                f1.num = stoll(n1Str);
+                f1.den = stoll(d1Str);
+                f2.num = stoll(n2Str);
+                f2.den = stoll(d2Str);
+            
+                if (f1.den != 0 && f2.den != 0) {
+                    pairs.push_back({f1, f2});
+                }
+            } catch (...) {
+                continue; 
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Hàm ghi kết quả ra file results.csv
+bool writeResultsCSV(const string& filename, const vector<pair<Fraction, Fraction>>& results) {
+    ofstream file(filename);
+    if (!file.is_open()) return false;
+    
+    // In dòng header 
+    file << "sum_num,sum_den,diff_num,diff_den\n";
+    
+    for (const auto& p : results) {
+        const Fraction& sum = p.first;  
+        const Fraction& diff = p.second;
+        file << sum.num << "," << sum.den << "," << diff.num << "," << diff.den << "\n";
+    }
+    file.close();
+    return true;
+}
+int main() {
+    vector<pair<Fraction, Fraction>> pairs;
+    if (!readPairsCSV("pairs.csv", pairs)) {
+        cerr << "Error reading file: pairs.csv" << endl;
+        return 1; // Lỗi đọc file
+    }
+    
+    vector<pair<Fraction, Fraction>> results; // Lưu trữ kết quả (tổng, hiệu)
+    
+    for (const auto& p : pairs) {
+        const Fraction& f1 = p.first;
+        const Fraction& f2 = p.second;
+        
+        Fraction sum = addFrac(f1, f2);
+        Fraction diff = subFrac(f1, f2);
+        
+        results.push_back({sum, diff});
+    }
+    
+    if (!writeResultsCSV("results.csv", results)) {
+        cerr << "Error writing file: results.csv" << endl;
+        return 1; // Lỗi ghi file
+    }
+    cout << "Results written to results.csv successfully." << endl;
+    return 0;
+}
