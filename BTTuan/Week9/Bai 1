@@ -1,0 +1,69 @@
+// Phân tích:
+// Input: 
+// File text.txt: Chứa văn bản ASCII gồm nhiều dòng, có thể chứa chữ, số, dấu câu và các ký tự đặc biệt.
+// Output: 
+// File normalized.txt: Chứa văn bản đã được chuẩn hoá từng dòng.
+// Các bước chuẩn hoá cho mỗi dòng:
+// 1. Ký tự alnum (chữ cái và số): Giữ lại và chuyển thành chữ thường (lowercase) bằng tolower().
+// 2. Ký tự không phải alnum (dấu câu, ký tự đặc biệt): Thay thế bằng 1 khoảng trắng (space).
+// 3. Gom khoảng trắng: Nếu có nhiều khoảng trắng liên tiếp, chỉ giữ lại 1.
+// 4. Cắt tỉa (Trim): Xoá khoảng trắng thừa ở đầu và cuối chuỗi (để xử lý case biên dòng chỉ toàn punctuation biến thành chuỗi rỗng).
+// Thiết kế hàm:
+// - Hàm string normalizeLine(const string& s):
+//   + Khởi tạo chuỗi kết quả res = "".
+//   + Dùng một cờ bool last_was_space = true (khởi tạo true để tự động bỏ qua các khoảng trắng/dấu câu ở ngay đầu dòng).
+//   + Duyệt từng ký tự c trong s:
+//     * Nếu isalnum(c): res += tolower(c), cập nhật last_was_space = false.
+//     * Ngược lại (nếu không phải chữ/số): Nếu !last_was_space (tức là trước đó là chữ/số), thì thêm 1 space vào res, cập nhật last_was_space = true.
+//   + Kết thúc vòng lặp: Nếu res có độ dài > 0 và ký tự cuối cùng là khoảng trắng (do dấu câu nằm ở cuối dòng tạo ra), thì pop_back() để xoá nó đi.
+// Pipeline:
+// Mở text.txt để đọc -> Mở normalized.txt để ghi -> Đọc từng dòng -> Gọi normalizeLine() -> Ghi vào file mới.
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cctype>  
+
+using namespace std;
+
+// Hàm chuẩn hoá một dòng văn bản   
+string normalizeLine(const string& s) {
+    string res = "";
+    bool last_was_space = true; // Giúp bỏ qua khoảng trắng/dấu câu ở đầu dòng
+    for (char c : s) {
+        if (isalnum(c)) {
+            res += tolower(c);
+            last_was_space = false;
+        } else {
+            if (!last_was_space) {
+                res += ' ';
+                last_was_space = true;
+            }
+        }
+    }
+    // Xoá khoảng trắng thừa ở cuối dòng nếu có
+    if (!res.empty() && res.back() == ' ') {
+        res.pop_back();
+    }
+    return res;
+}
+int main() {
+    ifstream infile("text.txt");
+    if (!infile.is_open()) {
+        cerr << "Error: Could not open text.txt\n";
+        return 1;
+    }
+    ofstream outfile("normalized.txt");
+    if (!outfile.is_open()) {
+        cerr << "Error: Could not open normalized.txt\n";
+        return 1;
+    }       
+    string line;
+    while (getline(infile, line)) {
+        string normalized = normalizeLine(line);
+        outfile << normalized << "\n";
+    }
+    infile.close();
+    outfile.close();
+    cout << "Normalization completed. Check normalized.txt for results." << endl;   
+    return 0;
+}   
