@@ -1,0 +1,125 @@
+// Phân tích:
+// Input: 
+// 1. File text.txt: Chứa văn bản cần phân tích.
+// 2. File config.txt: Chứa 1 số nguyên K duy nhất.
+// Output: 
+// File freq.csv: Chứa K từ xuất hiện nhiều nhất cùng tần suất của chúng (định dạng: word,count).
+// Các bước xử lý:
+// 1. Tái sử dụng các bước: Đọc file, normalize, tokenize và đếm tần suất vào unordered_map từ Bài 1 & 2.
+// 2. Đọc giá trị K: Mở file config.txt để lấy số K.
+// 3. Chuyển đổi cấu trúc dữ liệu: unordered_map không hỗ trợ sắp xếp (sort), nên ta phải đổ dữ liệu từ map sang một vector<pair<string, int>>.
+// 4. Sắp xếp với Comparator kép:
+//    - Ưu tiên 1: Tần suất (count) giảm dần (a.second > b.second).
+//    - Ưu tiên 2: Nếu tần suất bằng nhau, sắp xếp theo từ vựng (word) tăng dần (a.first < b.first).
+// 5. Cắt Top K: Lấy K phần tử đầu tiên từ vector đã sắp xếp.
+// Case biên: 
+// - K > unique_tokens (tổng số từ duy nhất): Chỉ in ra tối đa số từ hiện có (in tất cả) để tránh lỗi out-of-bounds (truy cập mảng vượt giới hạn).
+// Thiết kế hàm:
+// - vector<pair<string,int>> topK(const unordered_map<string,int>& freq, int k): Nhận vào map tần suất và K, trả về danh sách K từ top đầu.
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <unordered_map>
+#include <vector>
+#include <algorithm>
+#include <cctype>
+
+using namespace std;
+
+// Hàm chuẩn hoá một dòng văn bản
+string normalizeLine(const string& s) {
+    string res = "";
+    bool last_was_space = true; 
+    for (char c : s) {
+        if (isalnum(static_cast<unsigned char>(c))) {
+            res += tolower(static_cast<unsigned char>(c));
+            last_was_space = false;
+        } else {
+            if (!last_was_space) {
+                res += ' ';
+                last_was_space = true;
+            }
+        }
+    }
+    if (!res.empty() && res.back() == ' ') res.pop_back();
+    return res;
+}
+// Hàm Tokenize: Tách chuỗi thành mảng các từ
+vector<string> tokenize(const string& normalized) {
+    vector<string> tokens;
+    stringstream ss(normalized);
+    string word;
+    while (ss >> word) {
+        tokens.push_back(word);
+    }
+    return tokens;
+}
+// ----------------------------
+// Hàm so sánh (Comparator kép)
+bool cmp(const pair<string, int>& a, const pair<string, int>& b) {
+    if (a.second != b.second) {
+        return a.second > b.second; // Ưu tiên 1: Tần suất giảm dần
+    }
+    return a.first < b.first; // Ưu tiên 2: Từ vựng tăng dần (lexicographic)
+}
+
+// Hàm lấy Top K từ phổ biến nhất
+vector<pair<string, int>> topK(const unordered_map<string, int>& freqMap, int k) {
+    // Chuyển dữ liệu từ map sang vector
+    vector<pair<string, int>> vec(freqMap.begin(), freqMap.end());
+    // Sắp xếp vector bằng hàm cmp
+    sort(vec.begin(), vec.end(), cmp);
+    // Xử lý case biên: K lớn hơn tổng số từ duy nhất
+    if (k > vec.size()) {
+        k = vec.size();
+    }
+    // Cắt lấy K phần tử đầu tiên
+    return vector<pair<string, int>>(vec.begin(), vec.begin() + k);
+}
+int main() {
+    ifstream infile("text.txt");
+    if (!infile.is_open()) {
+        cerr << "Error: Could not open text.txt\n";
+        return 1;
+    }
+    unordered_map<string, int> freq;
+    string line;
+    while (getline(infile, line)) {
+        string normalized = normalizeLine(line);
+        vector<string> tokens = tokenize(normalized);
+        for (const string& word : tokens) {
+            freq[word]++;
+        }
+    }
+    infile.close();
+    
+    // Đọc giá trị K từ config.txt
+    ifstream configFile("config.txt");
+    if (!configFile.is_open()) {
+        cerr << "Error: Could not open config.txt\n";
+        return 1;
+    }
+    int K;
+    configFile >> K;
+    configFile.close();
+    
+    // Lấy Top K từ phổ biến nhất
+    vector<pair<string, int>> topWords = topK(freq, K);
+    
+    // Ghi kết quả ra freq.csv
+    ofstream outFile("freq.csv");
+    if (!outFile.is_open()) {
+        cerr << "Error: Could not open freq.csv for writing\n";
+        return 1;
+    }
+    outFile << "word,count\n"; // Header
+    for (const auto& p : topWords) {
+        outFile << p.first << "," << p.second << "\n";
+    }
+    outFile.close();
+    
+    cout << "Top " << K << " words have been written to freq.csv\n";
+    return 0;
+}
