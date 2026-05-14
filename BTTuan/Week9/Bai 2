@@ -1,0 +1,97 @@
+// Phân tích:
+// Input: 
+// File text.txt: Chứa văn bản thô.
+// Output: 
+// In ra chuỗi định dạng: "total_tokens=<n> / unique_tokens=<m>".
+// Các bước xử lý:
+// 1. Tái sử dụng hàm normalizeLine() từ Bài 1 để làm sạch từng dòng (loại bỏ dấu câu, chuyển chữ thường).
+// 2. Tách từ (Tokenize): 
+//    - Cắt chuỗi đã làm sạch thành các từ đơn (tokens) dựa trên khoảng trắng (space).
+//    - Sử dụng stringstream để tự động bóc tách các từ cách nhau bởi dấu cách.
+// 3. Lưu trữ và đếm tần suất:
+//    - Sử dụng cấu trúc dữ liệu unordered_map<string, int> freq.
+//    - Đây là Hash Map (Bảng băm), cho phép tra cứu và cập nhật tần suất đếm của từ với độ phức tạp trung bình O(1). Rất tối ưu!
+// 4. Tính toán:
+//    - total_tokens: Tổng số lượng từ đã đọc được (cộng dồn số lượng token ở mỗi dòng).
+//    - unique_tokens: Kích thước (size) của unordered_map freq (vì mỗi key trong map là duy nhất).
+// Case biên: 
+// - File text.txt rỗng -> Vòng lặp đọc file không chạy -> freq rỗng -> total_tokens = 0, unique_tokens = 0. Hoàn toàn tự động xử lý mượt mà.
+// Thiết kế hàm:
+// - vector<string> tokenize(const string& normalized): Nhận vào chuỗi sạch, trả về mảng các từ.
+#include <iostream>
+#include <fstream>
+#include <string>   
+#include <sstream>
+#include <unordered_map>
+#include <cctype>
+#include <vector>
+
+using namespace std;
+// Hàm chuẩn hoá một dòng văn bản
+string normalizeLine(const string& s) {
+    string res = "";
+    bool last_was_space = true; 
+
+    for (char c : s) {
+        if (isalnum(static_cast<unsigned char>(c))) {
+            res += tolower(static_cast<unsigned char>(c));
+            last_was_space = false;
+        } else {
+            if (!last_was_space) {
+                res += ' ';
+                last_was_space = true;
+            }
+        }
+    }
+    
+    if (!res.empty() && res.back() == ' ') {
+        res.pop_back();
+    }
+
+    return res;
+}
+
+// Hàm Tokenize: Tách chuỗi thành mảng các từ
+vector<string> tokenize(const string& normalized) {
+    vector<string> tokens;
+    stringstream ss(normalized);
+    string word;
+    
+    // Đọc từng từ cách nhau bởi khoảng trắng và đẩy vào vector
+    while (ss >> word) {
+        tokens.push_back(word);
+    }
+    
+    return tokens;
+}
+int main() {
+    ifstream infile("text.txt");
+    if (!infile.is_open()) {
+        cerr << "Error: Could not open text.txt\n";
+        return 1;
+    }
+    
+    unordered_map<string, int> freq; // Hash Map để đếm tần suất từ
+    int total_tokens = 0; // Biến đếm tổng số token
+    
+    string line;
+    // Đọc và xử lý từng dòng
+    while (getline(infile, line)) {
+        // 1. Chuẩn hoá dòng
+        string normalized = normalizeLine(line);
+        
+        // 2. Tokenize
+        vector<string> tokens = tokenize(normalized);
+        
+        // 3. Đếm tần suất
+        total_tokens += tokens.size();
+        for (const string& token : tokens) {
+            freq[token]++;
+        }
+    }
+    infile.close();
+    
+    int unique_tokens = freq.size(); // Số lượng từ duy nhất là kích thước của map
+    cout << "total_tokens=" << total_tokens << " / unique_tokens=" << unique_tokens << endl;
+    return 0;
+}
