@@ -1,0 +1,127 @@
+// Phân tích:
+// Input: 
+// File polynomials.csv: Chứa danh sách các đa thức (id, degree, a_0, a_1, ..., a_n).
+// Output: 
+// File stats.csv: Chứa thống kê với định dạng tiêu đề "id, degree, max_abs, min_abs, zero_count".
+// Yêu cầu xử lý (áp dụng cho các đa thức hợp lệ):
+// 1. max_abs: Tìm giá trị tuyệt đối lớn nhất trong các hệ số (max|a_i|).
+// 2. min_abs: Tìm giá trị tuyệt đối nhỏ nhất trong các hệ số (min|a_i|).
+// 3. zero_count: Đếm số lượng hệ số có giá trị bằng 0.
+// Thuật toán:
+// - Khởi tạo max_abs và min_abs bằng giá trị tuyệt đối của hệ số đầu tiên fabs(a[0]). 
+// - Khởi tạo biến zero_count = 0.
+// - Duyệt qua từng hệ số trong mảng a, tính abs_val = fabs(a[i]).
+// - Cập nhật max_abs, min_abs thông qua so sánh và tăng zero_count nếu a[i] == 0.
+// Xử lý case biên:
+// - degree = 0: Đa thức chỉ có 1 hệ số a_0. Vòng lặp vẫn chạy bình thường, max_abs và min_abs chính là fabs(a[0]).
+// - Tất cả hệ số bằng 0: Thuật toán tự động tìm ra min_abs = 0 và zero_count bằng đúng (degree + 1).
+// Thiết kế hàm:
+// - Tái sử dụng struct Poly và hàm readPolysCSV().
+// - Hàm bool writeStatsCSV(const string& filename, const vector<Poly>& polys): Thực hiện vòng lặp tính toán và ghi trực tiếp ra file CSV.
+// Pipeline:
+// Đọc đa thức -> Bỏ qua invalid -> Tính toán thống kê trên từng đa thức -> Ghi lần lượt ra stats.csv.
+#include <iostream>
+#include <vector>
+#include <fstream>      
+#include <string>
+#include <sstream>
+#include <cmath>
+#include <iomanip>
+
+using namespace std;
+
+// Cấu trúc đa thức
+struct Poly {
+    string id; // Mã định danh
+    int deg;   // Bậc đa thức
+    vector<double> a; // Hệ số (a0, a1, ..., an )
+};
+// Hàm đọc file polynomials.csv
+bool readPolysCSV(const string& path, vector<Poly>& polys) {
+    ifstream file(path);
+    if (!file.is_open()) return false;
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        stringstream ss(line);
+        string id, deg_str, token;
+        if (getline(ss, id, ',') && getline(ss, deg_str, ',')) {
+            try {
+                int degree = stoi(deg_str);
+                // Bỏ qua đa thức không hợp lệ (degree < 0)
+                if (degree < 0) continue;
+                Poly p;
+                p.id = id;
+                p.deg = degree;
+                while (getline(ss, token, ',')) {
+                    try {
+                        p.a.push_back(stod(token));
+                    } catch (...) {
+                        p.a.push_back(0.0);
+                    }
+                }
+                // Bù số 0 cho đủ hệ số
+                while (p.a.size() <= p.deg) {
+                    p.a.push_back(0.0);
+                }
+                // Cắt bỏ phần dư
+                if (p.a.size() > p.deg + 1) {
+                    p.a.resize(p.deg + 1);
+                }
+                polys.push_back(p);
+            } catch (...) {
+                continue; 
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+// Hàm xử lý và ghi file stats.csv
+bool writeStatsCSV(const string& filename, const vector<Poly>& polys) {
+    ofstream file(filename);
+    if (!file.is_open()) return false;
+    // Ghi tiêu đề (header)
+    file << "id,degree,max_abs,min_abs,zero_count\n";
+    // Set định dạng số để kết quả hiển thị đẹp
+    file << fixed << setprecision(2); 
+    for (const auto& p : polys) {
+        // Đảm bảo mảng không rỗng (an toàn)
+        if (p.a.empty()) continue;
+
+        double max_abs = fabs(p.a[0]);
+        double min_abs = fabs(p.a[0]);
+        int zero_count = 0;
+        // Duyệt tính toán thống kê
+        for (double coeff : p.a) {
+            double abs_val = fabs(coeff);
+            
+            if (abs_val > max_abs) max_abs = abs_val;
+            if (abs_val < min_abs) min_abs = abs_val;
+            if (coeff == 0.0) zero_count++;
+        }
+        // Ghi dòng kết quả
+        file << p.id << "," 
+             << p.deg << "," 
+             << max_abs << "," 
+             << min_abs << "," 
+             << zero_count << "\n";
+    }
+    file.close();
+    return true;
+}
+int main() {
+    vector<Poly> polys;
+    if (!readPolysCSV("polynomials.csv", polys)) {
+        cerr << "Error reading file: polynomials.csv" << endl;
+        return 1; // Lỗi đọc file
+    }
+    
+    if (!writeStatsCSV("stats.csv", polys)) {
+        cerr << "Error writing file: stats.csv" << endl;
+        return 1; // Lỗi ghi file
+    }
+    
+    cout << "Processing completed. Check stats.csv for results." << endl;
+    return 0;
+}
