@@ -1,0 +1,106 @@
+
+// Phân tích:
+// Input: 
+// File polynomials.csv: Mỗi dòng chứa id, degree, và các hệ số a0, a1,..., an (cách nhau bởi dấu phẩy).
+// Output: 
+// File summary.txt: Ghi thống kê theo định dạng "valid=<n> / invalid=<m> / max_degree=<d>".
+// Quy tắc xử lý:
+// 1. Kiểm tra hợp lệ: Nếu degree < 0, đa thức bị coi là invalid (không hợp lệ). Tăng biến đếm invalid và bỏ qua.
+// 2. Điền hệ số thiếu: Một đa thức bậc n sẽ cần n + 1 hệ số (từ a0 đến an). Nếu số lượng hệ số đọc được ít hơn n + 1, cần tự động điền thêm các giá trị 0.0 vào cuối.
+// 3. Rút gọn hệ số thừa: Nếu số lượng hệ số nhiều hơn n + 1, cắt bỏ các hệ số thừa để đảm bảo đa thức đúng bậc.
+// Thiết kế cấu trúc và hàm:
+// Cấu trúc struct Poly { string id; int deg; vector<double> a; };
+// Hàm bool readPolysCSV(const string& path, vector<Poly>& polys, int& invalid): Mở file, phân tích từng dòng, bắt case invalid, xử lý case thiếu hệ số và nạp vào vector polys.
+// Pipeline:
+// Đọc CSV -> Tách ID và Degree -> Kiểm tra Degree -> Tách hệ số -> Cân bằng số lượng hệ số (bù 0) -> Tìm max_degree -> Ghi summary.txt.
+
+#include <iostream>
+#include <vector>
+#include <fstream>          
+#include <string>
+#include <sstream>
+#include <algorithm>
+
+using namespace std;
+
+// Cấu trúc đa thức
+struct Poly {
+    string id; // Mã định danh
+    int deg;   // Bậc đa thức
+    vector<double> a; // Hệ số (a0, a1, ..., an)
+};
+// Hàm đọc file polynomials.csv
+bool readPolysCSV(const string& path, vector<Poly>& polys, int& invalid) {
+    ifstream file(path);
+    if (!file.is_open()) return false;  
+    string line;
+    invalid = 0;
+
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        string id, deg_str, token;
+
+        // Đọc id và degree
+        if (getline(ss, id, ',') && getline(ss, deg_str, ',')) {
+            try {
+                int degree = stoi(deg_str);
+                // Case 1: Degree < 0 -> invalid
+                if (degree < 0) {
+                    invalid++;
+                    continue;
+                }
+                Poly p;
+                p.id = id;
+                p.deg = degree;
+                // Đọc các hệ số a0 ... an
+                while (getline(ss, token, ',')) {
+                    try {
+                        p.a.push_back(stod(token));
+                    } catch (...) {
+                        p.a.push_back(0.0); // Nếu lỗi parse số thì mặc định là 0
+                    }
+                }
+                // Case biên 2: degree > số hệ số còn lại -> Thiếu hệ số thì bù 0
+                while (p.a.size() <= p.deg) {
+                    p.a.push_back(0.0);
+                }
+                // Cắt bỏ nếu dư hệ số (để đảm bảo size luôn đúng bằng degree + 1)
+                if (p.a.size() > p.deg + 1) {
+                    p.a.resize(p.deg + 1);
+                }
+                polys.push_back(p);
+            } catch (...) {
+                continue; 
+            }
+        }
+    }
+    file.close();
+    return true;
+}
+int main() {
+    vector<Poly> polys;
+    int invalidCount = 0;
+    if (!readPolysCSV("polynomials.csv", polys, invalidCount)) {
+        cerr << "Error reading file: polynomials.csv" << endl;
+        return 1; // Lỗi đọc file
+    }
+    
+    // Tính max_degree
+    int max_degree = 0;
+    for (const auto& p : polys) {
+        max_degree = max(max_degree, p.deg);
+    }
+    
+    // Ghi summary.txt
+    ofstream outFile("summary.txt");
+    if (!outFile.is_open()) {
+        cerr << "Error writing file: summary.txt" << endl;
+        return 1; // Lỗi ghi file
+    }
+    outFile << "valid=" << polys.size() << " / invalid=" << invalidCount << " / max_degree=" << max_degree << endl;
+    outFile.close();
+    
+    return 0;
+}
