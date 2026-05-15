@@ -64,7 +64,4 @@ int main() {
 
     return 0;
 }
-// cd "/Users/dilyz/Bài tập lớn" 
-// g++ -std=c++11 *.cpp -o app
-// ls -F
-// ./app
+
