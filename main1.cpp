@@ -1,3 +1,6 @@
+// ==========================================
+// File: main1.cpp
+// ==========================================
 #include <iostream>
 #include <vector>
 #include <string>
@@ -14,54 +17,65 @@ int main() {
     AudioFile audio;
     int k = 0, d = 0;
 
-    cout << "--- KIEM TRA PIPELINE (SINGLE FOLDER MODE) ---" << endl;
+    cout << "--- KIEM TRA PIPELINE ---" << endl;
 
-    // 1. Đọc config
-    if (!readConfig("config.txt", k, d)) {
-        cerr << "Khong tim thay file config.txt trong cung thu muc!" << endl;
+    if (!readConfig("data/config.txt", k, d)) {
+        cerr << "Khong tim thay file config.txt" << endl;
         return 1;
     }
     cout << "Config: k=" << k << ", d=" << d << endl;
 
-    // 2. Đọc Audio CSV
-    if (readAudioCSV("audio.csv", audio) != AudioStatus::SUCCESS) {
+    if (readAudioCSV("data/audio.csv", audio) != AudioStatus::SUCCESS) {
         cerr << "Loi doc file audio.csv!" << endl;
         return 1;
     }
     
-    // Gán sample rate giả định nếu chưa có
     audio.sample_rate = 44100;
-
     if (!audio.isValid()) {
-        cerr << "Du lieu audio khong hop le (Check sample_rate hoac so luong mau)." << endl;
+        cerr << "Du lieu audio khong hop le." << endl;
         return 1;
     }
 
-    // 3. Xử lý dữ liệu
+    vector<string> channel_names;
+    vector<Polynomial> best_polys;
+    bool is_first_channel = true; // Biến kiểm soát việc ghi đè hay ghi tiếp
+
     for (int i = 0; i < audio.getChannelCount(); ++i) {
         string name = audio.getChannelName(i);
         SampleVector samples = audio.getAllSamples(i);
+        channel_names.push_back(name);
         
         cout << "\nDang xu ly: " << name << endl;
 
-        // Chuan hoa và tính toán
         SampleVector normalized = standardizeZScore(samples);
         SampleVector energy = calculateRollingEnergy(normalized, k);
         
-        // Xuất báo cáo (File sẽ xuất hiện ngay trong thư mục này)
-        writeEnergyReport("energy_" + name + ".csv", energy);
+        // Gọi hàm ghi file mới, truyền thêm is_first_channel để biết có cần tạo mới/append không
+        writeEnergyReport("output/energy_report.csv", name, energy, !is_first_channel);
         
-        SegmentResult best = findBestSegment(energy);
-        writeBestSegment("best_" + name + ".txt", best, name);
+        SegmentResult best = findBestSegment(energy, k);
+        writeBestSegment("output/best_segment.txt", best, name, !is_first_channel);
         
-        cout << " -> Hoan thanh kenh " << name << ". Da xuat file bao cao." << endl;
+        vector<double> best_x;
+        vector<double> best_y;
+        for (int j = best.start_index; j <= best.end_index && j < samples.size(); ++j) {
+            best_x.push_back(j);
+            best_y.push_back(samples[j]); 
+        }
+
+        Polynomial poly = polyFit(best_x, best_y, d);
+        best_polys.push_back(poly);
+
+        cout << "Polynomial cho Best Segment (" << name << "): ";
+        printPolynomial(poly);
+        cout << " -> Hoan thanh kenh " << name << endl;
+        
+        is_first_channel = false; // Các kênh sau sẽ được append vào cuối file
     }
 
-    // 4. Xuất đa thức xấp xỉ
-    writePolyApprox("poly_approx.csv", audio.channels);
+    writePolyApprox("output/poly_approx.csv", channel_names, best_polys);
 
     cout << "\n--- TAT CA KET QUA DA DUOC LUU TAI THU MUC HIEN TAI ---" << endl;
 
     return 0;
 }
-
