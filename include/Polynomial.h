@@ -26,4 +26,7 @@ Polynomial derivative(const Polynomial& p);
 // Print polynomial
 void printPolynomial(const Polynomial& p);
 
+Polynomial polyFit(const std::vector<double>& x, const std::vector<double>& y, int degree);
+
+
 #endif
