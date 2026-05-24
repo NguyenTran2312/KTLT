@@ -72,49 +72,69 @@ AudioStatus readAudioCSV(const string& filepath, AudioFile& audio){
 // - Thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, energy)
 // - Hệ số của đa thức bậc n đã được xấp xấp cho mỗi kênh âm thanh
 // =======================
-bool writeEnergyReport(const string& filepath, const SampleVector& rolling_energy){
-    ofstream fileOut(filepath);
+bool writeEnergyReport(const string& filepath, const string& channel_name, const SampleVector& rolling_energy, bool append){
+    ios_base::openmode mode = ios_base::out;
+    if (append) mode |= ios_base::app;
+    ofstream fileOut(filepath, mode);
+    
     if (!fileOut.is_open()) {
         cerr << "Error opening output file: " << filepath << endl;
         return false;
     }
-    for (int i = 0; i < rolling_energy.size(); i++) {
-        fileOut << i << "," << rolling_energy[i] << endl;
+    
+    // In header nếu là lần ghi đầu tiên (chưa append)
+    if (!append) {
+        fileOut << "Channel,Index,Energy\n";
+    }
+    
+    fileOut << fixed << setprecision(6);
+    for (int i = 0; i < (int)rolling_energy.size(); i++) {
+        fileOut << channel_name << "," << i << "," << rolling_energy[i] << "\n";
     }
     fileOut.close();
     return true;
 }
-// Ghi thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, energy)
-bool writeBestSegment(const string& filepath, SegmentResult segment, const string& channel_name){
-    ofstream fileOut(filepath);
-    if (!fileOut.is_open()) {
-        cerr << "Error opening output file: " << filepath << endl;
-        return false;
-    }
-    fileOut << "Best Segment for Channel: " << channel_name << endl;
-    fileOut << "Start Index: " << segment.start_index << endl;
-    fileOut << "End Index: " << segment.end_index << endl;
-    fileOut << "Energy: " << segment.value << endl;
-    fileOut.close();
-    return true;
 
-}
-// Ghi hệ số của đa thức bậc n đã được xấp xấp cho mỗi kênh âm thanh
-bool writePolyApprox(const string& filepath, const vector<Channel>& channels){
-    ofstream fileOut(filepath);
+// Ghi thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, energy)
+bool writeBestSegment(const string& filepath, SegmentResult segment, const string& channel_name, bool append){
+    ios_base::openmode mode = ios_base::out;
+    if (append) mode |= ios_base::app;
+    ofstream fileOut(filepath, mode);
+    
     if (!fileOut.is_open()) {
         cerr << "Error opening output file: " << filepath << endl;
         return false;
     }
-    for (const auto& ch : channels) {
-        fileOut << "Channel: " << ch.name << endl;
-        fileOut << "Polynomial Coefficients: ";
-        
-        for (const auto& coeff : ch.approx.coeffs) {
-            fileOut << coeff << " ";
-        }
-        fileOut << endl;
-    }
+    
+    fileOut << "Best Segment for Channel: " << channel_name << "\n";
+    fileOut << "Start Index: " << segment.start_index << "\n";
+    fileOut << "End Index: " << segment.end_index << "\n";
+    fileOut << "Energy: " << segment.value << "\n\n";
     fileOut.close();
     return true;
+}
+
+// Ghi hệ số của đa thức bậc n đã được xấp xấp cho mỗi kênh âm thanh
+void writePolyApprox(const string& filename, const vector<string>& channel_names, const vector<Polynomial>& polys) {
+    ofstream fout(filename);
+    if (!fout.is_open()) {
+        cerr << "Error opening output file: " << filename << endl;
+        return;
+    }
+
+    for (size_t i = 0; i < channel_names.size(); ++i) {
+        fout << "Channel: " << channel_names[i] << "\n";
+        fout << "Polynomial Coefficients: ";
+
+        if (polys[i].coeffs.empty()) {
+            fout << "(none)";
+        } else {
+            for (size_t j = 0; j < polys[i].coeffs.size(); ++j) {
+                fout << polys[i].coeffs[j];
+                if (j + 1 < polys[i].coeffs.size()) fout << ", ";
+            }
+        }
+        fout << "\n\n"; 
+    }
+    fout.close();
 }
