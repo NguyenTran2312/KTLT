@@ -25,7 +25,7 @@ SampleVector buildPrefixSum(const SampleVector& samples);
 double getSegmentEnergy(const SampleVector& prefix, int l, int r);
 SampleVector calculateRollingEnergy(const SampleVector& samples, int k);
 SampleVector calculateRollingMean(const SampleVector& samples, int k);
-SegmentResult findBestSegment(const SampleVector& energy_array);
+SegmentResult findBestSegment(const SampleVector& energy_array, int window_size);
 SegmentResult detectCrescendo(const SampleVector& samples);
 
 #endif
