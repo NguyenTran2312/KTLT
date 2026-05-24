@@ -65,3 +65,63 @@ void printPolynomial(const Polynomial& p) {
     }
     cout << endl;
 }
+
+Polynomial polyFit(const vector<double>& x, const vector<double>& y, int degree) {
+    Polynomial p;
+    int n = x.size();
+    if (n == 0 || degree < 0) {
+        p.coeffs.push_back(Fraction(0, 1));
+        return p;
+    }
+
+    int N = degree + 1;
+    vector<vector<double>> M(N, vector<double>(N, 0.0));
+    vector<double> B(N, 0.0);
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            for (int k = 0; k < n; ++k) {
+                M[i][j] += pow(x[k], i + j);
+            }
+        }
+        for (int k = 0; k < n; ++k) {
+            B[i] += y[k] * pow(x[k], i);
+        }
+    }
+
+    vector<double> a(N, 0.0);
+    for (int i = 0; i < N; ++i) {
+        int maxRow = i;
+        for (int k = i + 1; k < N; ++k) {
+            if (abs(M[k][i]) > abs(M[maxRow][i])) maxRow = k;
+        }
+        swap(M[i], M[maxRow]);
+        swap(B[i], B[maxRow]);
+
+        if (abs(M[i][i]) < 1e-9) continue;
+
+        for (int k = i + 1; k < N; ++k) {
+            double t = M[k][i] / M[i][i];
+            for (int j = 0; j < N; ++j) M[k][j] -= t * M[i][j];
+            B[k] -= t * B[i];
+        }
+    }
+
+    for (int i = N - 1; i >= 0; --i) {
+        if (abs(M[i][i]) < 1e-9) {
+            a[i] = 0;
+        } else {
+            a[i] = B[i];
+            for (int j = i + 1; j < N; ++j) {
+                a[i] -= M[i][j] * a[j];
+            }
+            a[i] /= M[i][i];
+        }
+    }
+
+    for (int i = 0; i < N; ++i) {
+        p.coeffs.push_back(Fraction((int)round(a[i] * 10000.0), 10000));
+    }
+
+    return p;
+}
