@@ -147,10 +147,7 @@ SegmentResult detectCrescendo(const SampleVector& samples) {
 
         prev = curr;
     }
-
+    // Giá trị trả về ở đây lưu ĐỘ DÀI của đoạn crescendo
     return {best_start, best_end, (double)max_len};
 }
 
-    // Giá trị trả về ở đây lưu ĐỘ DÀI của đoạn crescendo
-    return {best_start, best_end, (double)max_len}; 
-}

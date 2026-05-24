@@ -1,0 +1,10 @@
+Best Segment for Channel: Left
+Start Index: 0
+End Index: 2
+Energy: 3.37874
+
+Best Segment for Channel: Right
+Start Index: 0
+End Index: 2
+Energy: 2
+
