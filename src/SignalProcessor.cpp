@@ -97,35 +97,23 @@ SampleVector calculateRollingEnergy(const SampleVector& samples, int k) {
     return rolling_energy;
 }
 
-SegmentResult findBestSegment(const SampleVector& energy_array) {
+SegmentResult findBestSegment(const SampleVector& energy_array, int window_size) {
     if (energy_array.empty()) return {-1, -1, 0.0};
 
-    double current_max = energy_array[0];
     double global_max = energy_array[0];
-    
-    int temp_start = 0;
-    int best_start = 0;
-    int best_end = 0;
+    int best_index = 0;
 
-    for (int i = 1; i < energy_array.size(); ++i) {
-        // Nếu việc cộng thêm energy_array[i] làm tổng hiện tại bé hơn chính energy_array[i]
-        // Nghĩa là ta nên "chặt đứt" dãy cũ và bắt đầu đếm lại dãy mới từ i
-        if (energy_array[i] > current_max + energy_array[i]) {
-            current_max = energy_array[i];
-            temp_start = i; // Đánh dấu điểm bắt đầu mới
-        } else {
-            current_max += energy_array[i];
-        }
-
-        // Cập nhật kỷ lục nếu tìm được chuỗi có tổng lớn hơn
-        if (current_max > global_max) {
-            global_max = current_max;
-            best_start = temp_start;
-            best_end = i;
+    for (int i = 1; i < (int)energy_array.size(); ++i) {
+        if (energy_array[i] > global_max) {
+            global_max = energy_array[i];
+            best_index = i;
         }
     }
 
-    return {best_start, best_end, global_max};
+    int start = best_index;
+    int end = best_index + window_size - 1;
+
+    return {start, end, global_max};
 }
 
 SegmentResult detectCrescendo(const SampleVector& samples) {
@@ -133,30 +121,35 @@ SegmentResult detectCrescendo(const SampleVector& samples) {
 
     int current_len = 1;
     int max_len = 1;
-    
+
     int temp_start = 0;
     int best_start = 0;
     int best_end = 0;
 
-    for (int i = 1; i < samples.size(); ++i) {
-        // Lấy trị tuyệt đối vì ta quan tâm đến CƯỜNG ĐỘ âm thanh to dần
-        double current_amp = std::abs(samples[i]);
-        double prev_amp = std::abs(samples[i - 1]);
+    double prev = std::abs(samples[0]);
 
-        if (current_amp >= prev_amp) {
-            current_len++; // Nếu đang to dần lên thì tăng độ dài chuỗi
+    for (int i = 1; i < (int)samples.size(); ++i) {
+        double curr = std::abs(samples[i]);
+
+        // thêm threshold nhỏ để tránh noise
+        if (curr >= prev * 0.98) {
+            current_len++;
         } else {
-            current_len = 1; // Bị ngắt quãng, reset lại độ dài
-            temp_start = i;  // Bắt đầu đếm chuỗi mới
+            current_len = 1;
+            temp_start = i;
         }
 
-        // Cập nhật kỷ lục
         if (current_len > max_len) {
             max_len = current_len;
             best_start = temp_start;
             best_end = i;
         }
+
+        prev = curr;
     }
+
+    return {best_start, best_end, (double)max_len};
+}
 
     // Giá trị trả về ở đây lưu ĐỘ DÀI của đoạn crescendo
     return {best_start, best_end, (double)max_len}; 
