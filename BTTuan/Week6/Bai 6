@@ -1,0 +1,104 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+
+using namespace std;
+
+// Hàm đọc ma trận 
+void readMatrix(ifstream& fin, vector<vector<long long>>& a, int& rows, int& cols)
+{
+    fin >> rows >> cols;
+
+    a.resize(rows,
+             vector<long long>(cols));
+
+    for(int i = 0; i < rows; i++)
+    {
+        for(int j = 0; j < cols; j++)
+        {
+            fin >> a[i][j];
+        }
+    }
+}
+
+// Hàm kiểm tra và nhân 2 ma trận
+bool multiplyMatrix(const vector<vector<long long>>& A, const vector<vector<long long>>& B,
+                    vector<vector<long long>>& C,
+                    int rowsA, int colsA,
+                    int rowsB, int colsB)
+{
+    
+    // Kiểm tra điều kiện nhân
+    if(colsA != rowsB)
+    {
+        return false;
+    }
+
+    // Tạo ma trận kết quả
+    C.resize(rowsA, vector<long long>(colsB, 0));
+
+    // Nhân ma trận
+    for(int i = 0; i < rowsA; i++)
+    {
+        for(int j = 0; j < colsB; j++)
+        {
+            for(int k = 0; k < colsA; k++)
+            {
+                C[i][j] += A[i][k] * B[k][j];
+            }
+        }
+    }
+
+    return true;
+}
+
+// In ma trận 
+void printMatrix(
+    const vector<vector<long long>>& a)
+{
+    for(int i = 0; i < a.size(); i++)
+    {
+        for(int j = 0; j < a[i].size(); j++)
+        {
+            cout << a[i][j] << " ";
+        }
+
+        cout << endl;
+    }
+}
+
+int main()
+{
+    ifstream fin("D:\\KTLT\\datasource\\matrix.txt");
+
+    if(!fin)
+    {
+        cout << "Khong mo duoc file\n";
+        return 0;
+    }
+
+    vector<vector<long long>> A, B, C;
+
+    int rowsA, colsA;
+    int rowsB, colsB;
+
+    // đọc ma trận A
+    readMatrix(fin, A, rowsA, colsA);
+
+    // đọc ma trận B
+    readMatrix(fin, B, rowsB, colsB);
+
+    fin.close();
+
+    // nhân ma trận
+    if(multiplyMatrix(A, B, C, rowsA, colsA, rowsB, colsB))
+    {
+        printMatrix(C);
+    }
+    else
+    {
+        cout << "INCOMPATIBLE";
+    }
+
+    return 0;
+}
