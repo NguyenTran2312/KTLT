@@ -1,0 +1,110 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+
+using namespace std;
+
+// Hàm đọc ma trận 
+void readMatrix(const string& filename, vector<vector<long long>>& a, int& n, int& m)
+{
+    ifstream fin(filename);
+
+    if (!fin)
+    {
+        cout << "Khong mo duoc file\n";
+        return;
+    }
+
+    fin >> n >> m;
+
+    // Khởi tạo lại kích thước của ma trận
+    a.resize(n + 1, vector<long long>(m + 1)); // dòng thêm 1, cột thêm 1
+
+    for (int i = 1; i <= n; i++)
+    {
+        for (int j = 1; j <= m; j++)
+        {
+            fin >> a[i][j];
+        }
+    }
+
+    fin.close();
+}
+
+// Xây prefix2D
+vector<vector<long long>>
+buildPrefix2D(const vector<vector<long long>>& a, int n, int m)
+{
+    vector<vector<long long>>
+    pre(n + 1, vector<long long>(m + 1, 0));
+
+    for (int i = 1; i <= n; i++)
+    {
+        for (int j = 1; j <= m; j++)
+        {
+            pre[i][j] =a[i][j] + pre[i - 1][j] + pre[i][j - 1] - pre[i - 1][j - 1];
+        }
+    }
+
+    return pre;
+}
+
+// Hàm truy vấn tổng vùng
+bool sumRect(const vector<vector<long long>>& pre, int x1, int y1, int x2, int y2, long long& ans)
+{
+    int n = pre.size() - 1;
+    int m = pre[0].size() - 1;
+
+    // kiểm tra hợp lệ
+    if (x1 < 1 || y1 < 1 ||
+        x2 > n || y2 > m ||
+        x1 > x2 || y1 > y2)
+    {
+        return false;
+    }
+
+    // Công thức tổng vùng
+    ans = pre[x2][y2] - pre[x1 - 1][y2] - pre[x2][y1 - 1] + pre[x1 - 1][y1 - 1];
+
+    return true;
+}
+
+
+int main()
+{
+    vector<vector<long long>> a;
+
+    int n, m;
+
+    // Đọc file
+    readMatrix("D:\\KTLT\\datasource\\matrix.txt", a, n, m);
+
+    // Xây prefix2D
+    vector<vector<long long>>
+    pre = buildPrefix2D(a, n, m);
+
+    int q;
+
+    cin >> q;
+
+    // Khởi tạo truy vấn
+    while (q--)
+    {
+        int x1, y1, x2, y2;
+
+        cin >> x1 >> y1 >> x2 >> y2;
+
+        long long ans;
+
+        if (sumRect(pre, x1, y1, x2, y2, ans))
+        {
+            cout << ans << endl;
+        }
+        else
+        {
+            cout << "INVALID" << endl;
+        }
+    }
+
+    return 0;
+}
