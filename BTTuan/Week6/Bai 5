@@ -1,0 +1,86 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+
+using namespace std;
+
+// Hàm đọc ma trận
+void readMatrix(const string& filename, vector<vector<long long>>& a, int& n)
+{
+    ifstream fin(filename);
+
+    if(!fin)
+    {
+        cout << "Khong mo duoc file\n";
+        return;
+    }
+
+    fin >> n;
+
+    a.resize(n, vector<long long>(n));
+
+    for(int i = 0; i < n; i++)
+    {
+        for(int j = 0; j < n; j++)
+        {
+            fin >> a[i][j];
+        }
+    }
+
+    fin.close();
+}
+
+// Hàm tính tổng đường chéo
+void diagonalSum(const vector<vector<long long>> &a, int n, long long &mainSum, long long &antiSum)
+{
+    mainSum = 0;
+    antiSum = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        mainSum += a[i][i];
+
+        antiSum += a[i][n - 1 - i];
+    }
+}
+
+// Hàm kiểm tra ma trận chéo
+bool isDiagonalMatrix(const vector<vector<long long>> &a, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            // Ngoài đường chéo chính
+            if (i != j && a[i][j] != 0)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+int main()
+{
+    vector<vector<long long>> a;
+
+    int n;
+
+    readMatrix("D:\\KTLT\\datasource\\matrix.txt", a, n);
+
+    long long mainSum, antiSum;
+
+    diagonalSum(a, n, mainSum, antiSum);
+
+    bool isDiagonal = isDiagonalMatrix(a, n);
+
+    cout << "main_diag_sum=" << mainSum << endl;
+
+    cout << "anti_diag_sum=" << antiSum << endl;
+
+    cout << "is_diagonal=" << isDiagonal << endl;
+
+    return 0;
+}
