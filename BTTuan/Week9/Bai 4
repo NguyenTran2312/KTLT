@@ -1,0 +1,110 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <algorithm>
+#include <cctype>
+
+using namespace std;
+
+// Chuyển chuỗi về chữ thường để chuẩn hóa token
+string toLower(const string& s) {
+    string result = s;
+    transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+// Loại bỏ ký tự không phải chữ/số ở đầu và cuối token
+string trim(const string& s) {
+    int start = 0, end = (int)s.size() - 1;
+    while (start <= end && !isalnum((unsigned char)s[start])) start++;
+    while (end >= start && !isalnum((unsigned char)s[end])) end--;
+    return (start > end) ? "" : s.substr(start, end - start + 1);
+}
+
+// Đọc danh sách stop-words từ file (mỗi dòng 1 từ) vào unordered_set
+unordered_set<string> loadStopWords(const string& filename) {
+    unordered_set<string> stops;
+    ifstream fin(filename);
+    string word;
+    while (getline(fin, word)) {
+        word = toLower(trim(word));
+        if (!word.empty()) stops.insert(word);
+    }
+    return stops;
+}
+
+// Đọc file text.txt, tokenize, đếm tần suất toàn bộ và sau khi lọc stop-words
+// Trả về: freq_all (trước lọc), freq_filtered (sau lọc), total_before, total_after, stopwords_removed
+void processText(const string& textFile,
+                 const unordered_set<string>& stops,
+                 unordered_map<string, int>& freq_filtered,
+                 int& total_before, int& total_after, int& stopwords_removed) {
+    ifstream fin(textFile);
+    string line, token;
+    total_before = 0;
+    total_after = 0;
+    stopwords_removed = 0;
+
+    while (getline(fin, line)) {
+        istringstream iss(line);
+        while (iss >> token) {
+            token = toLower(trim(token));
+            if (token.empty()) continue;
+            total_before++;
+            // Chỉ đếm vào freq nếu token không nằm trong stop-words
+            if (stops.count(token) == 0) {
+                freq_filtered[token]++;
+                total_after++;
+            } else {
+                stopwords_removed++;
+            }
+        }
+    }
+}
+
+// Ghi kết quả tần suất ra file CSV: word,count (tất cả, không giới hạn top-K)
+void writeFreqCSV(const string& filename,
+                  const unordered_map<string, int>& freq) {
+    ofstream fout(filename);
+    fout << "word,count\n";
+    for (const auto& [word, cnt] : freq) {
+        fout << word << "," << cnt << "\n";
+    }
+}
+
+// Ghi file summary với các trường: total_before, total_after, stopwords_removed
+void writeSummary(const string& filename,
+                  int total_before, int total_after, int stopwords_removed) {
+    ofstream fout(filename);
+    fout << "total_before,total_after,stopwords_removed\n";
+    fout << total_before << "," << total_after << "," << stopwords_removed << "\n";
+}
+
+int main() {
+    const string textFile      = "text.txt";
+    const string stopFile      = "stopwords.txt";
+    const string freqOutFile   = "freq_filtered.csv";
+    const string summaryFile   = "summary.txt";
+
+    // Đọc stop-words (nếu file rỗng hoặc không tồn tại, stops sẽ rỗng → freq_filtered = freq đầy đủ)
+    unordered_set<string> stops = loadStopWords(stopFile);
+
+    unordered_map<string, int> freq_filtered;
+    int total_before = 0, total_after = 0, stopwords_removed = 0;
+
+    processText(textFile, stops, freq_filtered, total_before, total_after, stopwords_removed);
+
+    writeFreqCSV(freqOutFile, freq_filtered);
+    writeSummary(summaryFile, total_before, total_after, stopwords_removed);
+
+    cout << "Bai 4: Loc stop-words\n";
+    cout << "total_before     : " << total_before     << "\n";
+    cout << "total_after      : " << total_after      << "\n";
+    cout << "stopwords_removed: " << stopwords_removed << "\n";
+    cout << "Da ghi: " << freqOutFile << ", " << summaryFile << "\n";
+
+    return 0;
+}
