@@ -1,0 +1,156 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <algorithm>
+
+using namespace std;
+
+struct Fraction
+{
+    long long num, den;
+};
+
+// Tìm UCLN
+long long gcd(long long a, long long b)
+{
+    a = abs(a);
+    b = abs(b);
+
+    while(b)
+    {
+        long long r = a % b;
+        a = b;
+        b = r;
+    }
+
+    return a;
+}
+
+// Rút gọn và chuẩn hóa phân số
+bool normalize(Fraction &f)
+{
+    if(f.den == 0) return false;
+
+    if(f.num == 0)
+    {
+        f.den = 1;
+        return true;
+    }
+
+    long long g = gcd(f.num, f.den);
+
+    f.num /= g;
+    f.den /= g;
+
+    if(f.den < 0)
+    {
+        f.num *= -1;
+        f.den *= -1;
+    }
+
+    return true;
+}
+
+// So sánh 2 phân số
+int cmpFrac(Fraction a, Fraction b)
+{
+    long long left = a.num * b.den;
+    long long right = b.num * a.den;
+
+    if(left < right) return -1;
+    if(left > right) return 1;
+
+    return 0;
+}
+
+// Kiểm tra phân số thuộc đoạn [lo, hi]
+bool inRange(Fraction f, Fraction lo, Fraction hi)
+{
+    if(cmpFrac(lo, hi) > 0) return false;
+
+    return cmpFrac(lo, f) <= 0 &&
+           cmpFrac(f, hi) <= 0;
+}
+
+int main()
+{
+    Fraction lo, hi;
+
+    ifstream config("config.txt");
+
+    config >> lo.num >> lo.den;
+    config >> hi.num >> hi.den;
+
+    if(!normalize(lo) || !normalize(hi))
+    {
+        cout << "Invalid config";
+        return 0;
+    }
+
+    ifstream fin("fractions.csv");
+
+    ofstream fout("filtered.csv");
+
+    vector<Fraction> arr;
+
+    string line;
+
+    int total_valid = 0;
+    int in_range = 0;
+    int out_of_range = 0;
+
+    while(getline(fin, line))
+    {
+        stringstream ss(line);
+
+        string s1, s2;
+
+        getline(ss, s1, ',');
+        getline(ss, s2);
+
+        Fraction f;
+
+        try
+        {
+            f.num = stoll(s1);
+            f.den = stoll(s2);
+        }
+        catch(...)
+        {
+            continue;
+        }
+
+        if(!normalize(f))
+        {
+            continue;
+        }
+
+        total_valid++;
+
+        if(inRange(f, lo, hi))
+        {
+            arr.push_back(f);
+            in_range++;
+        }
+        else
+        {
+            out_of_range++;
+        }
+    }
+
+    sort(arr.begin(), arr.end(),
+    [](Fraction a, Fraction b)
+    {
+        return cmpFrac(a, b) < 0;
+    });
+
+    for(Fraction f : arr)
+    {
+        fout << f.num << "/" << f.den << endl;
+    }
+
+    cout << "total_valid=" << total_valid << endl;
+    cout << "in_range=" << in_range << endl;
+    cout << "out_of_range=" << out_of_range;
+}
