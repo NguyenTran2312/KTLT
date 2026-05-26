@@ -1,0 +1,105 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+
+using namespace std;
+
+struct Poly
+{
+    string id;
+    int deg;
+    vector<int> c;
+};
+
+// Cộng 2 đa thức
+Poly addPoly(Poly p, Poly q)
+{
+    Poly res;
+
+    res.id = p.id + "_" + q.id;
+
+    res.deg = max(p.deg, q.deg);
+
+    res.c.resize(res.deg + 1, 0);
+
+    for(int i = 0; i <= p.deg; i++)
+    {
+        res.c[i] += p.c[i];
+    }
+
+    for(int i = 0; i <= q.deg; i++)
+    {
+        res.c[i] += q.c[i];
+    }
+
+    return res;
+}
+
+int main()
+{
+    ifstream fin("poly_pairs.csv");
+
+    ofstream fout("sum.csv");
+
+    string line;
+
+    while(getline(fin, line))
+    {
+        stringstream ss(line);
+
+        string id1, id2, temp;
+
+        int deg1, deg2;
+
+        getline(ss, id1, ',');
+        ss >> deg1;
+        ss.ignore();
+
+        Poly p;
+
+        p.id = id1;
+        p.deg = deg1;
+
+        p.c.resize(deg1 + 1);
+
+        for(int i = 0; i <= deg1; i++)
+        {
+            getline(ss, temp, ',');
+            p.c[i] = stoi(temp);
+        }
+
+        getline(ss, id2, ',');
+        ss >> deg2;
+        ss.ignore();
+
+        Poly q;
+
+        q.id = id2;
+        q.deg = deg2;
+
+        q.c.resize(deg2 + 1);
+
+        for(int i = 0; i <= deg2; i++)
+        {
+            if(i == deg2)
+                getline(ss, temp);
+            else
+                getline(ss, temp, ',');
+
+            q.c[i] = stoi(temp);
+        }
+
+        Poly s = addPoly(p, q);
+
+        fout << s.id << ","
+             << s.deg;
+
+        for(int x : s.c)
+        {
+            fout << "," << x;
+        }
+
+        fout << endl;
+    }
+}
