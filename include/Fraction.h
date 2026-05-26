@@ -7,10 +7,10 @@
 // Fraction struct
 // =======================
 struct Fraction {
-    int num, den;
+    long long num, den;
 
     // Constructor
-    Fraction(int n = 0, int d = 1);
+    Fraction(long long n = 0, long long d = 1);
 
     // Simplify fraction
     void simplify();
