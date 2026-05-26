@@ -1,0 +1,112 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+
+struct Fraction
+{
+    long long num, den;
+};
+
+// Tìm UCLN
+long long gcd(long long a, long long b)
+{
+    a = abs(a);
+    b = abs(b);
+
+    while(b)
+    {
+        long long r = a % b;
+        a = b;
+        b = r;
+    }
+
+    return a;
+}
+
+// Rút gọn và chuẩn hóa phân số
+bool normalize(Fraction &f)
+{
+    if(f.den == 0) return false;
+
+    if(f.num == 0)
+    {
+        f.den = 1;
+        return true;
+    }
+
+    long long g = gcd(f.num, f.den);
+
+    f.num /= g;
+    f.den /= g;
+
+    if(f.den < 0)
+    {
+        f.num *= -1;
+        f.den *= -1;
+    }
+
+    return true;
+}
+
+// Cộng 2 phân số
+Fraction addFrac(Fraction a, Fraction b)
+{
+    Fraction c;
+
+    c.num = a.num * b.den + b.num * a.den;
+    c.den = a.den * b.den;
+
+    normalize(c);
+
+    return c;
+}
+
+int main()
+{
+    ifstream fin("fractions.csv");
+
+    string line;
+
+    int valid = 0, invalid = 0;
+
+    Fraction sum = {0, 1};
+
+    while(getline(fin, line))
+    {
+        stringstream ss(line);
+
+        string s1, s2;
+
+        getline(ss, s1, ',');
+        getline(ss, s2);
+
+        Fraction f;
+
+        try
+        {
+            f.num = stoll(s1);
+            f.den = stoll(s2);
+        }
+        catch(...)
+        {
+            invalid++;
+            continue;
+        }
+
+        if(!normalize(f))
+        {
+            invalid++;
+            continue;
+        }
+
+        sum = addFrac(sum, f);
+
+        valid++;
+    }
+
+    cout << "valid=" << valid << endl;
+    cout << "invalid=" << invalid << endl;
+    cout << "sum=" << sum.num << "/" << sum.den;
+}

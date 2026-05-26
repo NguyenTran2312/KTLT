@@ -1,0 +1,142 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+using namespace std;
+
+// Đọc mảng số nguyên từ file (mỗi phần tử trên 1 dòng hoặc cách nhau bởi dấu cách)
+// Trả về vector chứa các phần tử đã đọc
+vector<long long> readArray(const string& filename) {
+    vector<long long> arr;
+    ifstream fin(filename);
+    long long val;
+    while (fin >> val) {
+        arr.push_back(val);
+    }
+    return arr;
+}
+
+// Xây dựng mảng prefix sum từ mảng đầu vào
+// prefix[i] = arr[0] + arr[1] + ... + arr[i-1]  (prefix[0] = 0)
+vector<long long> buildPrefixSum(const vector<long long>& arr) {
+    int n = arr.size();
+    vector<long long> prefix(n + 1, 0);
+    for (int i = 0; i < n; i++) {
+        prefix[i + 1] = prefix[i] + arr[i];
+    }
+    return prefix;
+}
+
+// Xây dựng prefix count riêng cho từng giá trị v
+// prefixCount[v][i] = số lần v xuất hiện trong arr[0..i-1]
+unordered_map<long long, vector<int>> buildPrefixCount(const vector<long long>& arr) {
+    int n = arr.size();
+    unordered_map<long long, vector<int>> pc;
+
+    // Khởi tạo vector đếm cho từng giá trị phân biệt
+    for (auto val : arr) {
+        if (pc.find(val) == pc.end()) {
+            pc[val].assign(n + 1, 0);
+        }
+    }
+    // Điền prefix count
+    for (int i = 0; i < n; i++) {
+        // Cập nhật tất cả giá trị: giữ nguyên nếu không phải arr[i], tăng nếu bằng arr[i]
+        for (auto& [val, cnt] : pc) {
+            cnt[i + 1] = cnt[i] + (arr[i] == val ? 1 : 0);
+        }
+    }
+    return pc;
+}
+
+// Xử lý truy vấn SUM l r: tính tổng arr[l..r] dùng prefix sum
+// In INVALID nếu chỉ số l, r không hợp lệ
+void handleSUM(const vector<long long>& prefix, int l, int r, int n, ofstream& fout) {
+    if (l < 0 || r >= n || l > r) {
+        fout << "INVALID\n";
+        return;
+    }
+    long long result = prefix[r + 1] - prefix[l];
+    fout << result << "\n";
+}
+
+// Xử lý truy vấn AVG l r: tính trung bình arr[l..r] = SUM / (r - l + 1)
+// In INVALID nếu chỉ số không hợp lệ
+void handleAVG(const vector<long long>& prefix, int l, int r, int n, ofstream& fout) {
+    if (l < 0 || r >= n || l > r) {
+        fout << "INVALID\n";
+        return;
+    }
+    long long sum = prefix[r + 1] - prefix[l];
+    double avg = (double)sum / (r - l + 1);
+    fout << avg << "\n";
+}
+
+// Xử lý truy vấn CNT l r v: đếm số lần v xuất hiện trong arr[l..r]
+// Dùng prefix count nếu v tồn tại, ngược lại trả về 0
+// In INVALID nếu chỉ số không hợp lệ
+void handleCNT(const unordered_map<long long, vector<int>>& pc,
+               int l, int r, long long v, int n, ofstream& fout) {
+    if (l < 0 || r >= n || l > r) {
+        fout << "INVALID\n";
+        return;
+    }
+    // Nếu v không xuất hiện lần nào trong mảng → count = 0
+    if (pc.find(v) == pc.end()) {
+        fout << 0 << "\n";
+        return;
+    }
+    const auto& cnt = pc.at(v);
+    fout << cnt[r + 1] - cnt[l] << "\n";
+}
+
+int main() {
+    const string arrayFile  = "array.txt";
+    const string queryFile  = "queries.txt";
+    const string outputFile = "results.txt";
+
+    // Đọc mảng và xây dựng cấu trúc hỗ trợ truy vấn
+    vector<long long> arr    = readArray(arrayFile);
+    int n                    = arr.size();
+    vector<long long> prefix = buildPrefixSum(arr);
+    auto pc                  = buildPrefixCount(arr);
+
+    ifstream fq(queryFile);
+    ofstream fout(outputFile);
+
+    string line;
+    while (getline(fq, line)) {
+        if (line.empty()) continue;
+        istringstream iss(line);
+        string type;
+        iss >> type;
+
+        if (type == "SUM") {
+            int l, r;
+            if (!(iss >> l >> r)) { fout << "INVALID\n"; continue; }
+            handleSUM(prefix, l, r, n, fout);
+
+        } else if (type == "AVG") {
+            int l, r;
+            if (!(iss >> l >> r)) { fout << "INVALID\n"; continue; }
+            handleAVG(prefix, l, r, n, fout);
+
+        } else if (type == "CNT") {
+            int l, r;
+            long long v;
+            if (!(iss >> l >> r >> v)) { fout << "INVALID\n"; continue; }
+            handleCNT(pc, l, r, v, n, fout);
+
+        } else {
+            fout << "INVALID\n";
+        }
+    }
+
+    cout << "Bai 4: Multi-query prefix sum\n";
+    cout << "Da xu ly xong. Ket qua ghi vao: " << outputFile << "\n";
+
+    return 0;
+}

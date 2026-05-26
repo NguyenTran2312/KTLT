@@ -1,0 +1,137 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+
+struct Fraction
+{
+    long long num, den;
+};
+
+// Tìm UCLN
+long long gcd(long long a, long long b)
+{
+    a = abs(a);
+    b = abs(b);
+
+    while(b)
+    {
+        long long r = a % b;
+        a = b;
+        b = r;
+    }
+
+    return a;
+}
+
+// Rút gọn và chuẩn hóa phân số
+bool normalize(Fraction &f)
+{
+    if(f.den == 0) return false;
+
+    if(f.num == 0)
+    {
+        f.den = 1;
+        return true;
+    }
+
+    long long g = gcd(f.num, f.den);
+
+    f.num /= g;
+    f.den /= g;
+
+    if(f.den < 0)
+    {
+        f.num *= -1;
+        f.den *= -1;
+    }
+
+    return true;
+}
+
+// Nhân 2 phân số
+Fraction multiply(Fraction a, Fraction b)
+{
+    Fraction c;
+
+    c.num = a.num * b.num;
+    c.den = a.den * b.den;
+
+    normalize(c);
+
+    return c;
+}
+
+// Chia 2 phân số
+Fraction divide(Fraction a, Fraction b)
+{
+    Fraction c;
+
+    c.num = a.num * b.den;
+    c.den = a.den * b.num;
+
+    normalize(c);
+
+    return c;
+}
+
+int main()
+{
+    ifstream fin("pairs.csv");
+
+    ofstream fout("results.csv");
+
+    string line;
+
+    while(getline(fin, line))
+    {
+        stringstream ss(line);
+
+        string s1, s2, s3, s4;
+
+        getline(ss, s1, ',');
+        getline(ss, s2, ',');
+        getline(ss, s3, ',');
+        getline(ss, s4);
+
+        Fraction a, b;
+
+        try
+        {
+            a.num = stoll(s1);
+            a.den = stoll(s2);
+
+            b.num = stoll(s3);
+            b.den = stoll(s4);
+        }
+        catch(...)
+        {
+            fout << "INVALID\n";
+            continue;
+        }
+
+        if(!normalize(a) || !normalize(b))
+        {
+            fout << "INVALID\n";
+            continue;
+        }
+
+        Fraction prod = multiply(a, b);
+
+        fout << prod.num << ","
+             << prod.den << ",";
+
+        if(b.num == 0)
+        {
+            fout << "DIV_ZERO\n";
+        }
+        else
+        {
+            Fraction quot = divide(a, b);
+
+            fout << quot.num << ","
+                 << quot.den << endl;
+        }
+    }
+}
