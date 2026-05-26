@@ -1,0 +1,158 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
+#include <algorithm>
+#include <cctype>
+#include <iomanip>
+using namespace std;
+
+
+// Đọc toàn bộ nội dung file text.txt thành một chuỗi lớn
+string readText(const string& filename) {
+    ifstream fin(filename);
+    ostringstream oss;
+    oss << fin.rdbuf();
+    return oss.str();
+}
+
+// Đọc stop-words từ file (mỗi dòng 1 từ) vào unordered_set
+unordered_set<string> readStopWords(const string& filename) {
+    unordered_set<string> stops;
+    ifstream fin(filename);
+    string word;
+    while (fin >> word) {
+        // Chuyển stop-word về chữ thường để so sánh nhất quán
+        transform(word.begin(), word.end(), word.begin(), ::tolower);
+        stops.insert(word);
+    }
+    return stops;
+}
+
+// Chuẩn hóa 1 token: chuyển thường, loại ký tự không phải alnum ở đầu/cuối
+string normalizeToken(const string& s) {
+    string t = s;
+    transform(t.begin(), t.end(), t.begin(), ::tolower);
+    int start = 0, end = (int)t.size() - 1;
+    while (start <= end && !isalnum((unsigned char)t[start])) start++;
+    while (end >= start && !isalnum((unsigned char)t[end])) end--;
+    return (start > end) ? "" : t.substr(start, end - start + 1);
+}
+
+
+// Tách chuỗi thành danh sách token đã được normalize
+// Bỏ qua token rỗng sau khi normalize
+vector<string> tokenize(const string& text) {
+    vector<string> tokens;
+    istringstream iss(text);
+    string word;
+    while (iss >> word) {
+        string token = normalizeToken(word);
+        if (!token.empty()) tokens.push_back(token);
+    }
+    return tokens;
+}
+
+
+// Lọc bỏ các token nằm trong stop-words
+// Trả về vector token sạch
+vector<string> filterStopWords(const vector<string>& tokens,
+                                const unordered_set<string>& stops) {
+    vector<string> result;
+    for (const auto& t : tokens) {
+        if (stops.count(t) == 0) {
+            result.push_back(t);
+        }
+    }
+    return result;
+}
+
+
+// Đếm tần suất từng token trong danh sách
+// Trả về map: token -> count
+unordered_map<string, int> countFreq(const vector<string>& tokens) {
+    unordered_map<string, int> freq;
+    for (const auto& t : tokens) {
+        freq[t]++;
+    }
+    return freq;
+}
+
+
+// Sắp xếp theo tần suất giảm dần, lấy top-20, ghi ra freq.csv
+// Nếu sau lọc stop-words không còn token → chỉ ghi header
+void writeFreq(const string& filename,
+               const unordered_map<string, int>& freq) {
+    // Sắp xếp theo count giảm dần
+    vector<pair<string, int>> sorted(freq.begin(), freq.end());
+    sort(sorted.begin(), sorted.end(),
+         [](const auto& a, const auto& b) { return a.second > b.second; });
+
+    ofstream fout(filename);
+    fout << "word,count\n";
+
+    // Case biên: không còn token nào sau khi lọc → chỉ có header
+    int limit = min((int)sorted.size(), 20);
+    for (int i = 0; i < limit; i++) {
+        fout << sorted[i].first << "," << sorted[i].second << "\n";
+    }
+}
+
+// Ghi summary dạng bảng căn lề đẹp bằng setw + left
+// Bao gồm: total (tổng token sau lọc), unique (số từ khác nhau), top-5 dạng bảng
+void writeSummary(const string& filename,
+                  const vector<string>& filtered,
+                  const unordered_map<string, int>& freq) {
+    // Tính top-5
+    vector<pair<string, int>> sorted(freq.begin(), freq.end());
+    sort(sorted.begin(), sorted.end(),
+         [](const auto& a, const auto& b) { return a.second > b.second; });
+
+    ofstream fout(filename);
+
+    fout << left << setw(20) << "total"  << filtered.size() << "\n";
+    fout << left << setw(20) << "unique" << freq.size()     << "\n";
+    fout << "\n";
+
+    // Bảng top-5 căn lề với setw
+    fout << left << setw(5)  << "rank"
+         << left << setw(20) << "word"
+         << left << setw(10) << "count" << "\n";
+    fout << string(35, '-') << "\n";
+
+    int limit = min((int)sorted.size(), 5);
+    for (int i = 0; i < limit; i++) {
+        fout << left << setw(5)  << (i + 1)
+             << left << setw(20) << sorted[i].first
+             << left << setw(10) << sorted[i].second << "\n";
+    }
+}
+
+
+int main() {
+    const string textFile    = "text.txt";
+    const string stopFile    = "stopwords.txt";
+    const string freqFile    = "freq.csv";
+    const string summaryFile = "summary.txt";
+
+    // Pipeline: readText → tokenize → filterStopWords → countFreq → write
+    string raw              = readText(textFile);
+    unordered_set<string> stops = readStopWords(stopFile);
+    vector<string> tokens   = tokenize(raw);
+    vector<string> filtered = filterStopWords(tokens, stops);
+    auto freq               = countFreq(filtered);
+
+    writeFreq(freqFile, freq);
+    writeSummary(summaryFile, filtered, freq);
+
+    cout << "Bai 5: Text analysis pipeline\n";
+    cout << "Tokens truoc loc : " << tokens.size()   << "\n";
+    cout << "Tokens sau loc   : " << filtered.size() << "\n";
+    cout << "So tu unique     : " << freq.size()     << "\n";
+    cout << "Da ghi: " << freqFile << ", " << summaryFile << "\n";
+
+    return 0;
+}
