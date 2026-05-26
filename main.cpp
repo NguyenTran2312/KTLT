@@ -26,7 +26,7 @@ int main() {
     }
     cout << "Config: k=" << k << ", d=" << d << endl;
 
-    if (readAudioCSV("data/audio.csv", audio) != AudioStatus::SUCCESS) {
+    if (readAudioCSV("data/no_data.csv", audio) != AudioStatus::SUCCESS) {
         cerr << "Loi doc file audio.csv!" << endl;
         return 1;
     }

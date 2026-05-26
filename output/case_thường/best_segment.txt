@@ -1,0 +1,12 @@
+      BEST SEGMENTS     
+[Kênh: Left]
+--------------------------------------------------
+1. Dãy năng lượng lớn nhất (Sliding window max) (Window Size k = 3)
+   - Index của đoạn mẫu: Sample 1 to Sample 3
+   - Tổng năng lượng lớn nhất : 3.999614
+
+2. Dãy năng lượng lớn nhất (Cresendo) 
+   - Tăng liên lục từ  : Sample 0 đến Sample 2
+   - Số mẫu tăng liên tục : 3 samples
+--------------------------------------------------
+

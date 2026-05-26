@@ -1,0 +1,8 @@
+Channel: Left
+  P(x)  = 0/1*x^0 + 0/1*x^1 + 0/1*x^2
+  P'(x) = 0/1*x^0 + 0/1*x^1
+
+Channel: Right
+  P(x)  = 0/1*x^0
+  P'(x) = 0/1*x^0
+

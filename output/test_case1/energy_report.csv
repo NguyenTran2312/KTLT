@@ -1,0 +1,4 @@
+Channel,Window_Index,Start_Sample,End_Sample,Rolling_Energy,Rolling_Mean,Rolling_Min,Rolling_Max
+Left,0,0,2,0.000000,0.000000,0.000000,0.000000
+Left,1,1,3,0.000000,0.000000,0.000000,0.000000
+Left,2,2,4,0.000000,0.000000,0.000000,0.000000
