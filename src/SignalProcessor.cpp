@@ -1,153 +1,117 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
 #include "SignalProcessor.h"
+#include "Statistics.h"
+#include <iostream>
+#include <cmath>
+#include <algorithm>
 
 using namespace std;
 
-// ==========================================
-// 1. Thuật toán Kadane
-// Bài toán: Tìm mảng con liên tiếp có tổng lớn nhất
-// Độ phức tạp: O(N) thời gian, O(1) không gian
-// ==========================================
-int kadane(const vector<int>& nums) {
-    if (nums.empty()) return 0;
-
-    int current_max = nums[0];
-    int global_max = nums[0];
-
-    for (size_t i = 1; i < nums.size(); ++i) {
-        // Chọn giữa việc bắt đầu một mảng con mới tại i, hoặc tiếp tục cộng dồn vào mảng con cũ
-        current_max = max(nums[i], current_max + nums[i]);
-        // Cập nhật tổng lớn nhất toàn cục
-        global_max = max(global_max, current_max);
-    }
-
-    return global_max;
-}
-
-// ==========================================
-// 2. Thuật toán LIS (Longest Increasing Subsequence)
-// Bài toán: Tìm độ dài của dãy con tăng ngặt dài nhất (không cần liên tiếp)
-// Độ phức tạp: O(N log N) thời gian, O(N) không gian
-// ==========================================
-int longestIncreasingSubsequence(const vector<int>& nums) {
-    if (nums.empty()) return 0;
-
-    vector<int> tails; // Mảng lưu phần tử cuối cùng nhỏ nhất của các dãy con tăng có độ dài khác nhau
-
-    for (int x : nums) {
-        // Dùng Binary Search để tìm vị trí đầu tiên trong 'tails' có giá trị >= x
-        auto it = lower_bound(tails.begin(), tails.end(), x);
-
-        // Nếu x lớn hơn tất cả các phần tử trong tails, thêm x vào cuối (mở rộng độ dài dãy LIS)
-        if (it == tails.end()) {
-            tails.push_back(x);
-        } 
-        // Nếu không, thay thế phần tử tìm được bằng x để tối ưu cho các phần tử phía sau
-        else {
-            *it = x;
-        }
-    }
-
-    return tails.size(); // Kích thước của tails chính là độ dài của LIS
-}
-
+// Prefix Sum 1D dùng để truy vấn nhanh O(1)
 SampleVector buildPrefixSum(const SampleVector& samples) {
     int n = samples.size();
-    // Tạo mảng prefix có kích thước n + 1 để dễ tính toán (tránh lỗi l - 1 < 0)
     SampleVector prefix(n + 1, 0.0);
-    
     for (int i = 0; i < n; ++i) {
-        // Cộng dồn năng lượng: P[i+1] = P[i] + (samples[i]^2)
         prefix[i + 1] = prefix[i] + (samples[i] * samples[i]);
     }
     return prefix;
 }
 
 double getSegmentEnergy(const SampleVector& prefix, int l, int r) {
-    if (l < 0 || r >= prefix.size() - 1 || l > r) return 0.0;
-    // Năng lượng đoạn [l, r] = P[r+1] - P[l]
+    if (l < 0 || r >= (int)prefix.size() - 1 || l > r) return 0.0;
     return prefix[r + 1] - prefix[l];
 }
 
-SampleVector calculateRollingEnergy(const SampleVector& samples, int k) {
+
+vector<WindowStats> calculateSlidingWindow(const SampleVector& samples, int k) {
+    vector<WindowStats> windows;
     int n = samples.size();
-    SampleVector rolling_energy;
-    
-    if (n == 0 || k <= 0 || k > n) return rolling_energy; // Xử lý case biên
+    if (n == 0 || k <= 0 || k > n) return windows;
 
-    double current_window_energy = 0.0;
+    double current_sum = 0.0;
+    double current_energy = 0.0;
 
-    // 1. Tính năng lượng cho cửa sổ đầu tiên (từ 0 đến k-1)
+    // 1. Tính toán cho cửa sổ đầu tiên (mẫu 0 đến k-1)
+    SampleVector first_window(samples.begin(), samples.begin() + k);
     for (int i = 0; i < k; ++i) {
-        current_window_energy += (samples[i] * samples[i]);
-    }
-    rolling_energy.push_back(current_window_energy);
-
-    // 2. Trượt cửa sổ từ k đến n - 1
-    for (int i = k; i < n; ++i) {
-        // Cộng năng lượng mẫu mới vào, trừ năng lượng mẫu cũ (i-k) ra
-        current_window_energy += (samples[i] * samples[i]);
-        current_window_energy -= (samples[i - k] * samples[i - k]);
-        
-        rolling_energy.push_back(current_window_energy);
+        current_sum += samples[i];
+        current_energy += (samples[i] * samples[i]);
     }
     
-    return rolling_energy;
+    // Gọi hàm Min/Max của bạn
+    double first_min = calculateMin(first_window);
+    double first_max = calculateMax(first_window);
+    
+    windows.push_back({0, 0, k - 1, current_energy, current_sum / k, first_min, first_max});
+
+    // 2. Trượt cửa sổ sang các vị trí tiếp theo
+    for (int i = k; i < n; ++i) {
+        current_sum += (samples[i] - samples[i - k]);
+        current_energy += (samples[i] * samples[i]) - (samples[i - k] * samples[i - k]);
+        
+        int w_idx = i - k + 1;
+        
+        // Trích xuất cửa sổ hiện tại để tính Min/Max
+        SampleVector current_window(samples.begin() + w_idx, samples.begin() + i + 1);
+        double w_min = calculateMin(current_window);
+        double w_max = calculateMax(current_window);
+
+        windows.push_back({w_idx, w_idx, i, current_energy, current_sum / k, w_min, w_max});
+    }
+    return windows;
 }
 
-SegmentResult findBestSegment(const SampleVector& energy_array, int window_size) {
-    if (energy_array.empty()) return {-1, -1, 0.0};
 
-    double global_max = energy_array[0];
+// Hàm quét tìm Cửa sổ trượt có tổng năng lượng lớn nhất
+SegmentResult findBestSegment(const vector<WindowStats>& windows) {
+    if (windows.empty()) return {-1, -1, 0.0};
+
+    double max_energy = windows[0].rolling_energy;
     int best_index = 0;
 
-    for (int i = 1; i < (int)energy_array.size(); ++i) {
-        if (energy_array[i] > global_max) {
-            global_max = energy_array[i];
+    // Duyệt qua mảng các cửa sổ để tìm đỉnh năng lượng
+    for (size_t i = 1; i < windows.size(); ++i) {
+        if (windows[i].rolling_energy > max_energy) {
+            max_energy = windows[i].rolling_energy;
             best_index = i;
         }
     }
 
-    int start = best_index;
-    int end = best_index + window_size - 1;
+    // Trích xuất dải mẫu gốc của cửa sổ đó
+    int start_sample = windows[best_index].start_sample;
+    int end_sample = windows[best_index].end_sample;
 
-    return {start, end, global_max};
+    return {start_sample, end_sample, max_energy};
 }
 
+// Phát hiện Crescendo (Chuỗi biên độ tăng dài nhất)
 SegmentResult detectCrescendo(const SampleVector& samples) {
     if (samples.empty()) return {-1, -1, 0.0};
 
     int current_len = 1;
     int max_len = 1;
-
+    
     int temp_start = 0;
     int best_start = 0;
     int best_end = 0;
 
-    double prev = std::abs(samples[0]);
-
     for (int i = 1; i < (int)samples.size(); ++i) {
-        double curr = std::abs(samples[i]);
+        double curr = abs(samples[i]);
+        double prev = abs(samples[i - 1]); // Lấy trực tiếp từ i-1 để tránh lệch nhịp biến toàn cục
 
-        // thêm threshold nhỏ để tránh noise
         if (curr >= prev * 0.98) {
             current_len++;
         } else {
             current_len = 1;
-            temp_start = i;
+            temp_start = i; // Chuỗi tăng mới bắt đầu tính từ vị trí i
         }
 
+        // Cập nhật khi tìm thấy độ dài lớn hơn hẳn
         if (current_len > max_len) {
             max_len = current_len;
             best_start = temp_start;
             best_end = i;
         }
-
-        prev = curr;
     }
-    // Giá trị trả về ở đây lưu ĐỘ DÀI của đoạn crescendo
+    
     return {best_start, best_end, (double)max_len};
 }
-

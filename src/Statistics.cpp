@@ -5,7 +5,7 @@
 #include <algorithm> // Cho std::min_element, std::max_element
 #include <stdexcept> // Cho std::invalid_argument
 #include "Statistics.h"
-
+#include "Defines.h"
 
 // 1. Tính giá trị trung bình (Mean)
 double calculateMean(const SampleVector& arr) {
@@ -52,7 +52,7 @@ SampleVector standardizeZScore(const SampleVector& arr) {
     SampleVector z_scores;
     z_scores.reserve(arr.size()); // Tối ưu hóa cấp phát bộ nhớ
     
-    if (stdDev == 0.0) {
+    if (std::abs(stdDev) < EPSILON) {
         // Trả về một vector có kích thước arr.size(), tất cả phần tử là 0.0
         return SampleVector(arr.size(), 0.0); 
     }
@@ -64,5 +64,3 @@ SampleVector standardizeZScore(const SampleVector& arr) {
     
     return z_scores;
 }
-
-

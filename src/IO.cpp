@@ -1,5 +1,6 @@
 #include "IO.h"
 #include "AudioModel.h"
+#include "Defines.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -73,7 +74,7 @@ AudioStatus readAudioCSV(const string& filepath, AudioFile& audio){
 // - Thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, energy)
 // - Hệ số của đa thức bậc n đã được xấp xấp cho mỗi kênh âm thanh
 // =======================
-bool writeEnergyReport(const string& filepath, const string& channel_name, const SampleVector& rolling_energy, bool append){
+bool writeEnergyReport(const string& filepath, const string& channel_name, const vector<WindowStats>& windows, bool append){
     ios_base::openmode mode = ios_base::out;
     if (append) mode |= ios_base::app;
     ofstream fileOut(filepath, mode);
@@ -83,21 +84,28 @@ bool writeEnergyReport(const string& filepath, const string& channel_name, const
         return false;
     }
     
-    // In header nếu là lần ghi đầu tiên (chưa append)
+    // THÊM 2 CỘT MỚI VÀO HEADER
     if (!append) {
-        fileOut << "Channel,Index,Energy\n";
+        fileOut << "Channel,Window_Index,Start_Sample,End_Sample,Rolling_Energy,Rolling_Mean,Rolling_Min,Rolling_Max\n";
     }
     
     fileOut << fixed << setprecision(6);
-    for (int i = 0; i < (int)rolling_energy.size(); i++) {
-        fileOut << channel_name << "," << i << "," << rolling_energy[i] << "\n";
+    for (const auto& w : windows) {
+        fileOut << channel_name << "," 
+                << w.window_index << "," 
+                << w.start_sample << "," 
+                << w.end_sample << "," 
+                << w.rolling_energy << "," 
+                << w.rolling_mean << ","
+                << w.rolling_min << ","  // Ghi giá trị Min
+                << w.rolling_max << "\n"; // Ghi giá trị Max
     }
     fileOut.close();
     return true;
 }
 
-// Ghi thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, energy)
-bool writeBestSegment(const string& filepath, SegmentResult segment, const string& channel_name, bool append){
+// Báo cáo chi tiết kết quả phân tích chuỗi con (Kadane + Crescendo)
+bool writeBestSegment(const string& filepath, const string& channel_name, SegmentResult kadane_res, SegmentResult crescendo_res, int k, bool append){
     ios_base::openmode mode = ios_base::out;
     if (append) mode |= ios_base::app;
     ofstream fileOut(filepath, mode);
@@ -107,10 +115,30 @@ bool writeBestSegment(const string& filepath, SegmentResult segment, const strin
         return false;
     }
     
-    fileOut << "Best Segment for Channel: " << channel_name << "\n";
-    fileOut << "Start Index: " << segment.start_index << "\n";
-    fileOut << "End Index: " << segment.end_index << "\n";
-    fileOut << "Energy: " << segment.value << "\n\n";
+    if (!append) {
+        fileOut << "      BEST SEGMENTS     \n";
+    }
+
+    if (kadane_res.start_index == -1) {
+        fileOut << "[Kênh: " << channel_name << "]\n";
+        fileOut << "--------------------------------------------------\n";
+        fileOut << " Khong du du lieu hop le de phan tich (Kenh rong hoac k > n).\n";
+        fileOut << "--------------------------------------------------\n\n";
+        fileOut.close();
+        return true;
+    }
+
+    fileOut << "[Kênh: " << channel_name << "]\n";
+    fileOut << "--------------------------------------------------\n";
+    fileOut << "1. Dãy năng lượng lớn nhất (Sliding window max) (Window Size k = " << k << ")\n";
+    fileOut << "   - Index của đoạn mẫu: Sample " << kadane_res.start_index << " to Sample " << kadane_res.end_index << "\n";
+    fileOut << "   - Tổng năng lượng lớn nhất : " << fixed << setprecision(6) << kadane_res.value << "\n\n";
+    
+    fileOut << "2. Dãy năng lượng lớn nhất (Cresendo) \n";
+    fileOut << "   - Tăng liên lục từ  : Sample " << crescendo_res.start_index << " đến Sample " << crescendo_res.end_index << "\n";
+    fileOut << "   - Số mẫu tăng liên tục : " << (int)crescendo_res.value << " samples\n";
+    fileOut << "--------------------------------------------------\n\n";
+    
     fileOut.close();
     return true;
 }

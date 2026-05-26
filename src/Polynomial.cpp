@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include "Fraction.h"
+#include "Defines.h"
 
 using namespace std;
 
@@ -101,7 +102,7 @@ Polynomial polyFit(const vector<double>& x, const vector<double>& y, int degree)
         swap(M[i], M[maxRow]);
         swap(B[i], B[maxRow]);
 
-        if (abs(M[i][i]) < 1e-9) continue;
+        if (abs(M[i][i]) < EPSILON) continue;
 
         for (int k = i + 1; k < N; ++k) {
             double t = M[k][i] / M[i][i];
@@ -111,7 +112,7 @@ Polynomial polyFit(const vector<double>& x, const vector<double>& y, int degree)
     }
 
     for (int i = N - 1; i >= 0; --i) {
-        if (abs(M[i][i]) < 1e-9) {
+        if (abs(M[i][i]) < EPSILON) {
             a[i] = 0;
         } else {
             a[i] = B[i];

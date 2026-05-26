@@ -7,7 +7,6 @@
 using SampleVector = std::vector<double>;
 const double EPSILON = 1e-9;
 const int DEFAULT_SAMPLE_RATE = 44100;
-const double SILENCE_THRESHOLD = 0.001;
 
 enum class AudioStatus {
     SUCCESS = 0,

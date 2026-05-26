@@ -1,5 +1,6 @@
 #include <iostream>
 #include "AudioModel.h"
+#include "Defines.h"
 
 using namespace std;
 

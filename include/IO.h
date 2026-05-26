@@ -19,10 +19,9 @@ AudioStatus readAudioCSV(const std::string& filepath, AudioFile& audio);
 // =================================================================
 
 //Ghi báo cáo năng lượng cuộn (Rolling Energy) của các mẫu
-bool writeEnergyReport(const std::string& filepath, const std::string& channel_name, const SampleVector& rolling_energy, bool append);
+bool writeEnergyReport(const std::string& filepath, const std::string& channel_name, const std::vector<WindowStats>& windows, bool append);
 
-// Ghi thông tin về đoạn âm thanh có năng lượng cao nhất (start_index, end_index, value)
-bool writeBestSegment(const std::string& filepath, SegmentResult segment, const std::string& channel_name, bool append);
+bool writeBestSegment(const std::string& filepath, const std::string& channel_name, SegmentResult kadane_res, SegmentResult crescendo_res, int k, bool append);
 
 //Ghi các hệ số đa thức xấp xỉ dưới dạng phân số cho tất cả các kênh
 void writePolyApprox(const std::string& filename, const std::string& txt_filename, const std::vector<std::string>& channel_names, const AudioFile& audio, const std::vector<Polynomial>& polys);

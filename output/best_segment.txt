@@ -1,10 +1,23 @@
-Best Segment for Channel: Left
-Start Index: 0
-End Index: 2
-Energy: 3.37874
+      BEST SEGMENTS     
+[Kênh: Left]
+--------------------------------------------------
+1. Dãy năng lượng lớn nhất (Sliding window max) (Window Size k = 3)
+   - Index của đoạn mẫu: Sample 674 to Sample 676
+   - Tổng năng lượng lớn nhất : 14.855415
 
-Best Segment for Channel: Right
-Start Index: 0
-End Index: 2
-Energy: 2
+2. Dãy năng lượng lớn nhất (Cresendo) 
+   - Tăng liên lục từ  : Sample 550 đến Sample 573
+   - Số mẫu tăng liên tục : 24 samples
+--------------------------------------------------
+
+[Kênh: Right]
+--------------------------------------------------
+1. Dãy năng lượng lớn nhất (Sliding window max) (Window Size k = 3)
+   - Index của đoạn mẫu: Sample 499 to Sample 501
+   - Tổng năng lượng lớn nhất : 14.725868
+
+2. Dãy năng lượng lớn nhất (Cresendo) 
+   - Tăng liên lục từ  : Sample 475 đến Sample 503
+   - Số mẫu tăng liên tục : 29 samples
+--------------------------------------------------
 
