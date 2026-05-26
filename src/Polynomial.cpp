@@ -120,7 +120,7 @@ Polynomial polyFit(const vector<double>& x, const vector<double>& y, int degree)
     }
 
     for (int i = 0; i < N; ++i) {
-        p.coeffs.push_back(Fraction((int)round(a[i] * 10000.0), 10000));
+        p.coeffs.push_back(Fraction((long long)round(a[i] * 1000000.0), 1000000));
     }
 
     return p;
