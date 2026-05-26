@@ -25,6 +25,5 @@ bool writeEnergyReport(const std::string& filepath, const std::string& channel_n
 bool writeBestSegment(const std::string& filepath, SegmentResult segment, const std::string& channel_name, bool append);
 
 //Ghi các hệ số đa thức xấp xỉ dưới dạng phân số cho tất cả các kênh
-void writePolyApprox(const std::string& filename, const std::vector<std::string>& channel_names, const std::vector<Polynomial>& polys);
-
+void writePolyApprox(const std::string& filename, const std::vector<std::string>& channel_names, const AudioFile& audio, const std::vector<Polynomial>& polys);
 #endif

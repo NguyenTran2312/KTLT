@@ -116,26 +116,58 @@ bool writeBestSegment(const string& filepath, SegmentResult segment, const strin
 }
 
 // Ghi hệ số của đa thức bậc n đã được xấp xấp cho mỗi kênh âm thanh
-void writePolyApprox(const string& filename, const vector<string>& channel_names, const vector<Polynomial>& polys) {
+void writePolyApprox(const string& filename, const vector<string>& channel_names, const AudioFile& audio, const vector<Polynomial>& polys) {
     ofstream fout(filename);
     if (!fout.is_open()) {
         cerr << "Error opening output file: " << filename << endl;
         return;
     }
 
+    // Duyệt qua từng kênh âm thanh để ghi thông tin đa thức và bảng dữ liệu tương ứng
     for (size_t i = 0; i < channel_names.size(); ++i) {
-        fout << "Channel: " << channel_names[i] << "\n";
-        fout << "Polynomial Coefficients: ";
+        if (polys[i].coeffs.empty()) continue;
 
-        if (polys[i].coeffs.empty()) {
-            fout << "(none)";
-        } else {
-            for (size_t j = 0; j < polys[i].coeffs.size(); ++j) {
-                fout << polys[i].coeffs[j];
-                if (j + 1 < polys[i].coeffs.size()) fout << ", ";
-            }
+        string name = channel_names[i];
+        Polynomial p = polys[i];
+        Polynomial p_prime = derivative(p); 
+
+        // 1. Ghi nhận thông tin hệ số đa thức xấp xỉ làm nhãn (Metadata) ở đầu mỗi Kênh
+        fout << "# Kênh: " << name << "\n";
+        fout << "# Đa thức P(x) xấp xỉ: ";
+        for (size_t j = 0; j < p.coeffs.size(); ++j) {
+            fout << p.coeffs[j].num << "/" << p.coeffs[j].den << "*x^" << j;
+            if (j + 1 < p.coeffs.size()) fout << " + ";
         }
-        fout << "\n\n"; 
+        fout << "\n";
+
+        fout << "# Đa thức Đạo hàm P'(x): ";
+        for (size_t j = 0; j < p_prime.coeffs.size(); ++j) {
+            fout << p_prime.coeffs[j].num << "/" << p_prime.coeffs[j].den << "*x^" << j;
+            if (j + 1 < p_prime.coeffs.size()) fout << " + ";
+        }
+        fout << "\n";
+
+        // 2. In tiêu đề cột cho bảng dữ liệu của Kênh hiện tại
+        fout << "Channel,Index,Original_Value,Horner_P(x),Derivative_P'(x)\n";
+
+        // Lấy danh sách mẫu dữ liệu gốc để chạy bảng
+        SampleVector samples = audio.getAllSamples(i);
+
+        // 3. Đổ dữ liệu chạy thuật toán Horner qua từng index
+        for (int idx = 0; idx < (int)samples.size(); ++idx) {
+            double orig_val = samples[idx];
+            Fraction x_fraction(idx, 1); 
+
+            Fraction p_x = evaluate(p, x_fraction);
+            Fraction p_prime_x = evaluate(p_prime, x_fraction);
+
+            fout << name << "," 
+                 << idx << "," 
+                 << fixed << setprecision(2) << orig_val << ","
+                 << p_x.num << "/" << p_x.den << ","
+                 << p_prime_x.num << "/" << p_prime_x.den << "\n";
+        }
+        fout << "\n"; // Thêm một dòng trống để phân tách tường minh giữa các kênh
     }
     fout.close();
 }

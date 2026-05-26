@@ -20,15 +20,18 @@ struct Polynomial {
 */
 
 // Tính giá trị đa thức tại x
-double evaluate(const Polynomial& p, double x) {
-    double result = 0;
+// Tính giá trị đa thức tại x (tất cả đều ở dạng Fraction)
+Fraction evaluate(const Polynomial& p, const Fraction& x) {
+    if (p.coeffs.empty()) {
+        return Fraction(0, 1);
+    }
 
-    // Duyệt từ bậc cao xuống
-    for (int i = p.coeffs.size() - 1; i >= 0; i--) {
-        
-        // Chuyển phân số thành số thực
-        double c = (double)p.coeffs[i].num / p.coeffs[i].den;
-        result = result * x + c;
+    // Bắt đầu từ hệ số bậc cao nhất (an)
+    Fraction result = p.coeffs[p.coeffs.size() - 1];
+
+    // Duyệt lặp ngược từ bậc (n-1) về bậc 0 theo thuật toán Horner
+    for (int i = (int)p.coeffs.size() - 2; i >= 0; i--) {
+        result = result * x + p.coeffs[i];
     }
 
     return result;

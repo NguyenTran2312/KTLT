@@ -73,7 +73,7 @@ int main() {
         is_first_channel = false; // Các kênh sau sẽ được append vào cuối file
     }
 
-    writePolyApprox("output/poly_approx.csv", channel_names, best_polys);
+    writePolyApprox("output/poly_approx.csv", channel_names, audio, best_polys);
 
     cout << "\n--- TAT CA KET QUA DA DUOC LUU TAI THU MUC HIEN TAI ---" << endl;
 

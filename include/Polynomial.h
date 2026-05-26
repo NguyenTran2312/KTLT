@@ -18,7 +18,7 @@ struct Polynomial {
 // =======================
 
 // Evaluate polynomial at x (Horner's method)
-double evaluate(const Polynomial& p, double x);
+Fraction evaluate(const Polynomial& p, const Fraction& x);
 
 // Compute derivative of polynomial
 Polynomial derivative(const Polynomial& p);
