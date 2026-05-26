@@ -1,0 +1,110 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <algorithm>
+#include <cctype>
+
+using namespace std;
+
+// Chuyển chuỗi về chữ thường để chuẩn hóa token
+string toLower(const string& s) {
+    string result = s;
+    transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+// Loại bỏ ký tự không phải chữ/số ở đầu và cuối token
+string trim(const string& s) {
+    int start = 0, end = (int)s.size() - 1;
+    while (start <= end && !isalnum((unsigned char)s[start])) start++;
+    while (end >= start && !isalnum((unsigned char)s[end])) end--;
+    return (start > end) ? "" : s.substr(start, end - start + 1);
+}
+
+// Đọc toàn bộ file text.txt, normalize (toLower + trim) và tokenize
+// Trả về danh sách token theo thứ tự xuất hiện trong file
+vector<string> tokenizeFile(const string& filename) {
+    vector<string> tokens;
+    ifstream fin(filename);
+    string line, token;
+    while (getline(fin, line)) {
+        istringstream iss(line);
+        while (iss >> token) {
+            token = toLower(trim(token));
+            if (!token.empty()) tokens.push_back(token);
+        }
+    }
+    return tokens;
+}
+
+// Đếm tần suất bigram (cặp từ liên tiếp 'w1 w2') từ danh sách token
+// Trả về map: bigram_string -> count
+unordered_map<string, int> countBigrams(const vector<string>& tokens) {
+    unordered_map<string, int> freq;
+    for (size_t i = 0; i + 1 < tokens.size(); i++) {
+        string bigram = tokens[i] + " " + tokens[i + 1];
+        freq[bigram]++;
+    }
+    return freq;
+}
+
+// Sắp xếp các bigram theo tần suất giảm dần, lấy top-K phần tử
+// Trả về vector các pair (bigram, count) đã sắp xếp
+vector<pair<string, int>> getTopK(
+        const unordered_map<string, int>& freq, int k) {
+    vector<pair<string, int>> sorted_freq(freq.begin(), freq.end());
+    sort(sorted_freq.begin(), sorted_freq.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    if ((int)sorted_freq.size() > k)
+        sorted_freq.resize(k);
+    return sorted_freq;
+}
+
+// Ghi top-K bigram ra file CSV: bigram,count
+void writeBigramCSV(const string& filename,
+                    const vector<pair<string, int>>& topK) {
+    ofstream fout(filename);
+    fout << "bigram,count\n";
+    for (const auto& [bigram, cnt] : topK) {
+        fout << bigram << "," << cnt << "\n";
+    }
+}
+
+int main() {
+    const string textFile    = "text.txt";
+    const string bigramOut   = "bigram.csv";
+    const int TOP_K               = 20;
+
+    // Tokenize toàn bộ file
+    vector<string> tokens = tokenizeFile(textFile);
+
+    // Kiểm tra: nếu ít hơn 2 token → không thể tạo bigram
+    if (tokens.size() < 2) {
+        ofstream fout(bigramOut);
+        fout << "NO_BIGRAM\n";
+        cout << "Bai 6: Dem tan suat bigram\n";
+        cout << "It hon 2 token -> ghi NO_BIGRAM vao " << bigramOut << "\n";
+        return 0;
+    }
+
+    // Đếm tần suất tất cả bigram
+    auto bigramFreq = countBigrams(tokens);
+
+    // Lấy top-20 bigram
+    auto top20 = getTopK(bigramFreq, TOP_K);
+
+    writeBigramCSV(bigramOut, top20);
+
+    cout << "Bai 6: Dem tan suat bigram\n";
+    cout << "Tong so bigram khac nhau: " << bigramFreq.size() << "\n";
+    cout << "Top " << TOP_K << " bigram:\n";
+    for (const auto& [bigram, cnt] : top20) {
+        cout << "  \"" << bigram << "\" : " << cnt << "\n";
+    }
+    cout << "Da ghi: " << bigramOut << "\n";
+
+    return 0;
+}
