@@ -1,0 +1,104 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <cmath>
+
+using namespace std;
+
+struct Poly
+{
+    string id;
+    int deg;
+    vector<double> c;
+};
+
+// Tính giá trị đa thức tại x
+double evalPoly(Poly p, double x)
+{
+    double sum = 0;
+
+    for(int i = 0; i <= p.deg; i++)
+    {
+        sum += p.c[i] * pow(x, i);
+    }
+
+    return sum;
+}
+
+// Tính đạo hàm đa thức
+Poly derivative(Poly p)
+{
+    Poly d;
+
+    d.id = p.id;
+
+    if(p.deg == 0)
+    {
+        d.deg = 0;
+        d.c.push_back(0);
+        return d;
+    }
+
+    d.deg = p.deg - 1;
+
+    d.c.resize(d.deg + 1);
+
+    for(int i = 1; i <= p.deg; i++)
+    {
+        d.c[i - 1] = p.c[i] * i;
+    }
+
+    return d;
+}
+
+int main()
+{
+    ifstream fin("polynomials.csv");
+
+    ofstream fout("deriv_report.csv");
+
+    string line;
+
+    while(getline(fin, line))
+    {
+        stringstream ss(line);
+
+        string temp;
+
+        Poly p;
+
+        double x;
+
+        getline(ss, p.id, ',');
+
+        getline(ss, temp, ',');
+        x = stod(temp);
+
+        getline(ss, temp, ',');
+        p.deg = stoi(temp);
+
+        p.c.resize(p.deg + 1);
+
+        for(int i = 0; i <= p.deg; i++)
+        {
+            if(i == p.deg)
+                getline(ss, temp);
+            else
+                getline(ss, temp, ',');
+
+            p.c[i] = stod(temp);
+        }
+
+        Poly d = derivative(p);
+
+        double px = evalPoly(p, x);
+
+        double dpx = evalPoly(d, x);
+
+        fout << p.id << ","
+             << x << ","
+             << px << ","
+             << dpx << endl;
+    }
+}
