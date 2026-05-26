@@ -1,0 +1,191 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <limits>
+
+using namespace std;
+
+// Lưu thống kê cho 1 cột
+struct ColStats {
+    string name;
+    int    count   = 0;        // số giá trị không missing
+    int    missing = 0;        // số ô trống hoặc không parse được
+    double minVal  =  numeric_limits<double>::max();
+    double maxVal  = -numeric_limits<double>::max();
+    double mean    = 0.0;
+    double std_dev = 0.0;
+};
+
+// Đọc dòng header của CSV, tách theo dấu phẩy, trả về danh sách tên cột
+vector<string> readHeader(const string& line) {
+    vector<string> headers;
+    istringstream iss(line);
+    string col;
+    while (getline(iss, col, ',')) {
+        // Loại bỏ khoảng trắng đầu/cuối tên cột
+        while (!col.empty() && col.front() == ' ') col.erase(col.begin());
+        while (!col.empty() && col.back()  == ' ') col.pop_back();
+        headers.push_back(col);
+    }
+    return headers;
+}
+
+// Đọc toàn bộ data.csv, trả về:
+//   - headers: tên các cột
+//   - columns: columns[j] = danh sách giá trị cột j (string, có thể rỗng nếu missing)
+void readCSV(const string& filename,
+             vector<string>& headers,
+             vector<vector<string>>& columns) {
+    ifstream fin(filename);
+    string line;
+
+    // Đọc header
+    if (!getline(fin, line)) return;
+    headers = readHeader(line);
+    int ncols = headers.size();
+    columns.resize(ncols);
+
+    // Đọc từng dòng dữ liệu
+    while (getline(fin, line)) {
+        if (line.empty()) continue;
+        istringstream iss(line);
+        string cell;
+        int j = 0;
+        while (getline(iss, cell, ',')) {
+            // Loại khoảng trắng
+            while (!cell.empty() && cell.front() == ' ') cell.erase(cell.begin());
+            while (!cell.empty() && cell.back()  == ' ') cell.pop_back();
+            if (j < ncols) columns[j].push_back(cell);
+            j++;
+        }
+        // Nếu dòng thiếu cột → điền chuỗi rỗng (missing)
+        while (j < ncols) {
+            columns[j].push_back("");
+            j++;
+        }
+    }
+}
+
+// Tính count, missing, min, max, mean cho 1 cột
+// Trả về vector các giá trị hợp lệ để tính std sau
+vector<double> computeBasicStats(const vector<string>& col, ColStats& stats) {
+    vector<double> vals;
+    for (const auto& cell : col) {
+        if (cell.empty()) {
+            stats.missing++;
+            continue;
+        }
+        try {
+            double v = stod(cell);
+            vals.push_back(v);
+            stats.count++;
+            stats.minVal = min(stats.minVal, v);
+            stats.maxVal = max(stats.maxVal, v);
+            stats.mean  += v;
+        } catch (...) {
+            // Không parse được số → coi là missing
+            stats.missing++;
+        }
+    }
+    if (stats.count > 0) stats.mean /= stats.count;
+    return vals;
+}
+
+// Tính độ lệch chuẩn (std) của cột sau khi đã có mean
+// std = sqrt( sum((x - mean)^2) / count )
+void computeStd(const vector<double>& vals, ColStats& stats) {
+    if (stats.count == 0) { stats.std_dev = 0; return; }
+    double variance = 0.0;
+    for (double v : vals) {
+        variance += (v - stats.mean) * (v - stats.mean);
+    }
+    stats.std_dev = sqrt(variance / stats.count);
+}
+
+// Tính đầy đủ thống kê cho 1 cột (gọi 2 hàm trên)
+ColStats computeColStats(const string& colName, const vector<string>& col) {
+    ColStats stats;
+    stats.name = colName;
+    // Reset min/max phòng cột toàn missing
+    stats.minVal = 0;
+    stats.maxVal = 0;
+    vector<double> vals = computeBasicStats(col, stats);
+    computeStd(vals, stats);
+    return stats;
+}
+
+// Ghi kết quả thống kê tất cả cột ra dashboard.csv
+// Mỗi hàng = 1 cột thống kê: name, count, missing, min, max, mean, std
+void writeDashboard(const string& filename,
+                    const vector<ColStats>& stats) {
+    ofstream fout(filename);
+    fout << fixed << setprecision(4);
+    fout << "column,count,missing,min,max,mean,std\n";
+    for (const auto& s : stats) {
+        fout << s.name    << ","
+             << s.count   << ","
+             << s.missing << ","
+             << s.minVal  << ","
+             << s.maxVal  << ","
+             << s.mean    << ","
+             << s.std_dev << "\n";
+    }
+}
+
+
+int main() {
+    const string inputFile  = "data.csv";
+    const string outputFile = "dashboard.csv";
+
+    vector<string>          headers;
+    vector<vector<string>>  columns;
+
+    // Bước 1+2: Đọc CSV
+    readCSV(inputFile, headers, columns);
+
+    int ncols = headers.size();
+    if (ncols == 0) {
+        cout << "Khong doc duoc du lieu!\n";
+        return 1;
+    }
+
+    // Bước 3: Tính thống kê từng cột
+    vector<ColStats> allStats;
+    for (int j = 0; j < ncols; j++) {
+        ColStats s = computeColStats(headers[j], columns[j]);
+        allStats.push_back(s);
+    }
+
+    // Bước 4: Ghi dashboard
+    writeDashboard(outputFile, allStats);
+
+    // In tóm tắt ra console
+    cout << "Bai 6: Dashboard tong hop\n";
+    cout << left << setw(15) << "column"
+         << setw(8)  << "count"
+         << setw(10) << "missing"
+         << setw(10) << "min"
+         << setw(10) << "max"
+         << setw(10) << "mean"
+         << setw(10) << "std" << "\n";
+    cout << string(73, '-') << "\n";
+    cout << fixed << setprecision(2);
+    for (const auto& s : allStats) {
+        cout << left << setw(15) << s.name
+             << setw(8)  << s.count
+             << setw(10) << s.missing
+             << setw(10) << s.minVal
+             << setw(10) << s.maxVal
+             << setw(10) << s.mean
+             << setw(10) << s.std_dev << "\n";
+    }
+    cout << "\nDa ghi: " << outputFile << "\n";
+
+    return 0;
+}
