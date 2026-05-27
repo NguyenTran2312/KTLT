@@ -23,12 +23,6 @@ struct WindowStats {
     double rolling_max;
 };
 
-// 1. Thuật toán Kadane gốc cho mảng số nguyên
-int kadane(const std::vector<int>& nums);
-
-// 2. Thuật toán LIS (Longest Increasing Subsequence)
-int longestIncreasingSubsequence(const std::vector<int>& nums);
-
 // --- Các hàm giải thuật hệ thống nâng cấp ---
 SampleVector buildPrefixSum(const SampleVector& samples);
 double getSegmentEnergy(const SampleVector& prefix, int l, int r);
