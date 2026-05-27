@@ -3,6 +3,7 @@
 #include <cmath>
 #include <climits>
 #include <algorithm>
+
 using namespace std;
 
 // Tìm UCLN bằng thuật toán Euclid đệ quy
