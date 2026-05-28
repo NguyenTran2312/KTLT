@@ -20,6 +20,8 @@ struct Fraction {
 // Operator overloads
 // =======================
 
+static Fraction makeFraction(long long n, long long d);
+
 // Arithmetic
 Fraction operator+(const Fraction& a, const Fraction& b);
 Fraction operator-(const Fraction& a, const Fraction& b);
